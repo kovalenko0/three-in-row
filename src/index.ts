@@ -3,10 +3,13 @@ import {
   Container,
   Graphics,
   WebGLRenderer,
-  CanvasRenderer
+  CanvasRenderer,
+  ticker
 } from 'pixi.js'
 
-type Renderer = WebGLRenderer | CanvasRenderer
+import { createTransitionEffect } from './transition-effect'
+
+export type Renderer = WebGLRenderer | CanvasRenderer
 
 export type CellColor = 'a' | 'b'
 
@@ -23,6 +26,10 @@ export interface Row {
 }
 
 export interface Cell {
+  offset: {
+    x: number
+    y: number
+  }
   color: CellColor
 }
 
@@ -41,7 +48,20 @@ stage.addChild(graphics)
 
 renderer.render(stage)
 
+const mainTicker = new ticker.Ticker()
+
+const logEffect = createTransitionEffect(mainTicker, time => {
+  return time > 1000
+})
+
+setTimeout(() => {
+  logEffect.execute()
+}, 1000)
+
+mainTicker.start()
+
 function buildInitialState(fieldWith: number, fieldHeight: number): GameState {
+  const cellInitialOffset = -1000
   return {
     field: {
       width: fieldWith,
@@ -50,6 +70,10 @@ function buildInitialState(fieldWith: number, fieldHeight: number): GameState {
         return {
           cells: createArrayOfLength(fieldHeight, cellIndex => {
             return {
+              offset: {
+                x: 0,
+                y: cellInitialOffset
+              },
               color: getRandomCellColor()
             }
           })

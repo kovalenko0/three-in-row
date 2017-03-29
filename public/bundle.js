@@ -18218,6 +18218,7 @@ global.PIXI = exports; // eslint-disable-line
 
 Object.defineProperty(exports, "__esModule", { value: true });
 const pixi_js_1 = __webpack_require__(88);
+const transition_effect_1 = __webpack_require__(187);
 const renderer = pixi_js_1.autoDetectRenderer(400, 400);
 document.querySelector('#stage').appendChild(renderer.view);
 const stage = new pixi_js_1.Container();
@@ -18226,7 +18227,16 @@ const state = buildInitialState(10, 10);
 renderGateState(graphics, state);
 stage.addChild(graphics);
 renderer.render(stage);
+const mainTicker = new pixi_js_1.ticker.Ticker();
+const logEffect = transition_effect_1.createTransitionEffect(mainTicker, time => {
+    return time > 1000;
+});
+setTimeout(() => {
+    logEffect.execute();
+}, 1000);
+mainTicker.start();
 function buildInitialState(fieldWith, fieldHeight) {
+    const cellInitialOffset = -1000;
     return {
         field: {
             width: fieldWith,
@@ -18235,6 +18245,10 @@ function buildInitialState(fieldWith, fieldHeight) {
                 return {
                     cells: createArrayOfLength(fieldHeight, cellIndex => {
                         return {
+                            offset: {
+                                x: 0,
+                                y: cellInitialOffset
+                            },
                             color: getRandomCellColor()
                         };
                     })
@@ -39114,6 +39128,34 @@ module.exports = function(module) {
 	}
 	return module;
 };
+
+
+/***/ }),
+/* 187 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+function createTransitionEffect(ticker, callback) {
+    return {
+        execute() {
+            return new Promise(resolve => {
+                let timeSinceStart = 0;
+                const trigger = () => {
+                    timeSinceStart += ticker.elapsedMS;
+                    const doStop = callback(timeSinceStart);
+                    if (doStop) {
+                        ticker.remove(trigger);
+                        resolve();
+                    }
+                };
+                ticker.add(trigger);
+            });
+        }
+    };
+}
+exports.createTransitionEffect = createTransitionEffect;
 
 
 /***/ })
