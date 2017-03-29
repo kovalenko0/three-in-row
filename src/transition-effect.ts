@@ -1,24 +1,24 @@
 import { ticker } from 'pixi.js'
 import { Task } from './sequencer'
 
-export function createTransitionEffect(ticker: ticker.Ticker, callback: (timeSinceStart: number) => boolean): Task {
+export interface RenderNotifierObserver {
+  subscribe(callback: (timeSinceStart: number) => void): {
+    unsubscribe(): void
+  }
+}
+
+export function createTransitionEffect(ticker: RenderNotifierObserver, callback: (timeSinceStart: number) => boolean): Task {
   return {
     execute() {
       return new Promise<void>(resolve => {
-        let timeSinceStart = 0
-
-        const trigger = () => {
-          timeSinceStart += ticker.elapsedMS
-
+        const subscription = ticker.subscribe((timeSinceStart) => {
           const doStop = callback(timeSinceStart)
 
           if (doStop) {
-            ticker.remove(trigger)
+            subscription.unsubscribe()
             resolve()
           }
-        }
-
-        ticker.add(trigger)
+        })
       })
     }
   }

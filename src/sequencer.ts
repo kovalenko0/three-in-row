@@ -19,3 +19,13 @@ export function createParallelExecutor(tasks: Task[]): Task {
     }
   }
 }
+
+export function delay(time: number): Task {
+  return {
+    execute() {
+      return new Promise<void>(resolve => {
+        setTimeout(resolve, time)
+      })
+    }
+  }
+}

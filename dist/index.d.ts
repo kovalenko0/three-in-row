@@ -1,5 +1,6 @@
 /// <reference types="pixi.js" />
-import { WebGLRenderer, CanvasRenderer } from 'pixi.js';
+import { Graphics, WebGLRenderer, CanvasRenderer } from 'pixi.js';
+import { RenderNotifierObserver } from './transition-effect';
 export declare type Renderer = WebGLRenderer | CanvasRenderer;
 export declare type CellColor = 'a' | 'b';
 export interface GameState {
@@ -18,4 +19,12 @@ export interface Cell {
         y: number;
     };
     color: CellColor;
+    view: Graphics;
+}
+export declare class RenderNotifier implements RenderNotifierObserver {
+    private subscriptions;
+    subscribe(callback: (time: number) => void): {
+        unsubscribe: () => void;
+    };
+    notify(timePassed: number): void;
 }
