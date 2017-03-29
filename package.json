@@ -1,0 +1,29 @@
+{
+  "name": "three-in-row",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kovalenko0/three-in-row.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/kovalenko0/three-in-row/issues"
+  },
+  "homepage": "https://github.com/kovalenko0/three-in-row#readme",
+  "dependencies": {
+    "awesome-typescript-loader": "^3.1.2",
+    "pixi.js": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/pixi.js": "^4.4.0",
+    "source-map-loader": "^0.1.6",
+    "typescript": "^2.2.1",
+    "webpack": "^2.1.0-beta.22"
+  }
+}

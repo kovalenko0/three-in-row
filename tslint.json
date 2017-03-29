@@ -1,0 +1,35 @@
+{
+    "extends": "tslint:recommended",
+    "rules": {
+      "semicolon": [true, "never"],
+      "interface-name": [
+        true,
+        "never-prefix"
+      ],
+      "trailing-comma": [
+        false
+      ],
+      "quotemark": [
+        true,
+        "single",
+        "jsx-single"
+      ],
+      "object-literal-sort-keys": false,
+      "arrow-parens": false,
+      "max-line-length": [
+        true,
+        200
+      ],
+      "ordered-imports": [
+        false
+      ],
+      "only-arrow-functions": [
+        false
+      ],
+      "no-empty": false,
+      "no-unused-expression": true,
+      "no-unused-variable": [
+        true
+      ]
+    }
+}
