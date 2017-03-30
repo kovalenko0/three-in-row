@@ -5,9 +5,10 @@
     "module": "commonjs",
     "target": "es6",
     "declaration": true,
-    "outDir": "./dist/"
+    "outDir": "./dist/",
+    "strictNullChecks": true
   },
   "files": [
-    "./src/index.ts"
+    "./src/app.ts"
   ]
 }

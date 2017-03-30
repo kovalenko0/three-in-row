@@ -148,6 +148,8 @@ function buildInitialState(fieldWidth: number, fieldHeight: number): GameState {
             }
 
             graphics.beginFill(hexColor)
+
+            // TODO: padding should also affect top left corner position
             graphics.drawRect(
               0, 0,
               cellSize - padding * 2,
