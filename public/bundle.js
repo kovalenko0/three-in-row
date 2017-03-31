@@ -18949,10 +18949,29 @@ function removeRandomCells(state) {
     }
     const staticCells = state.cells.filter(c => !c.inTransition);
     const index = getRandomNumberInRange(0, staticCells.length - 3);
-    const idsToRemove = [index, index + 1, index + 2].map((i) => staticCells[i].id);
-    state.removeTransitions.push(...idsToRemove.map(id => {
+    const cellsToRemove = [index].map((i) => staticCells[i]);
+    cellsToRemove.forEach(cell => {
+        const cellsAbove = state.cells.filter(c => c.x === cell.x && c.y < cell.y);
+        cellsAbove.forEach(c => {
+            c.y += 1;
+            state.moveTransitions.push({
+                target: c.id,
+                duration: 500,
+                startTime: state.time,
+                from: {
+                    x: 0,
+                    y: -1
+                },
+                to: {
+                    x: 0,
+                    y: 0
+                }
+            });
+        });
+    });
+    state.removeTransitions.push(...cellsToRemove.map(cell => {
         return {
-            target: id,
+            target: cell.id,
             startTime: state.time,
             duration: 300
         };
@@ -18974,7 +18993,7 @@ function processFinishedRemoveTransitions(state) {
     });
     state = cellsToRemove.reduce((state, cell, index) => {
         if (cell) {
-            return createNewCellAt(state, cell.x, cell.y, index * 100);
+            return createNewCellAt(state, cell.x, 0, index * 100);
         }
         return state;
     }, state);
