@@ -5,31 +5,8 @@ import { ticker } from 'pixi.js'
 const initialState: AppState = {
   frameIndex: 0,
   time: 0,
-  transitions: [
-    // {
-    //   duration: 500,
-    //   startTime: 0,
-    //   target: 12,
-    //   options: {
-    //     type: 'move',
-    //     from: {
-    //       x: -1,
-    //       y: 0
-    //     },
-    //     to: {
-    //       x: 0,
-    //       y: 3
-    //     }
-    //   },
-    //   currentState: {
-    //     x: 0,
-    //     y: 0
-    //   },
-    // }
-  ],
-  cells: [
-
-  ]
+  moveTransitions: [],
+  cells: []
 }
 
 const store = createAppStore(initialState)

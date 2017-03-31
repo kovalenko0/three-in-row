@@ -5,7 +5,7 @@ export type AppStore = Store<AppState>
 export interface AppState {
   frameIndex: number
   time: number
-  transitions: Transition[]
+  moveTransitions: MoveTransition[]
   cells: Cell[]
 }
 
@@ -13,13 +13,10 @@ export interface Transition {
   target: CellId
   startTime: number
   duration: number
-  options: MoveTransition
-  currentState: MoveTransitionState
   progress?: number
 }
 
-export interface MoveTransition {
-  type: 'move'
+export interface MoveTransition extends Transition {
   from: MoveTransitionState
   to: MoveTransitionState
 }
@@ -88,7 +85,7 @@ export function createAppStore(initialState: AppState) {
 
     state = removeFinishedTransitions(state)
 
-    state.transitions.forEach(t => {
+    state.moveTransitions.forEach(t => {
       const target = findById(state.cells, t.target)
 
       if (!target) {
@@ -96,7 +93,6 @@ export function createAppStore(initialState: AppState) {
       }
 
       t.progress = getTransitionProgress(t, state.time)
-      t.currentState = interpolateTransition(t, t.progress)
     })
 
     return state || initialState
@@ -112,13 +108,6 @@ function getTransitionProgress(t: Transition, currentTime: number) {
     return 1
   } else {
     return isBeingAnimatedFor / t.duration
-  }
-}
-
-function interpolateTransition(t: Transition, progress: number) {
-  return {
-    x: t.options.from.x + (t.options.to.x - t.options.from.x) * progress,
-    y: t.options.from.y + (t.options.to.y - t.options.from.y) * progress
   }
 }
 
@@ -145,24 +134,17 @@ function createField(state: AppState, width: number, height: number) {
         y
       })
 
-      state.transitions.push({
+      state.moveTransitions.push({
         target: id,
-        currentState: {
-          x: 0,
-          y: 0
-        },
         duration: 500,
         startTime: state.time + delay,
-        options: {
-          type: 'move',
-          from: {
-            x: 0,
-            y: - y - 1
-          },
-          to: {
-            x: 0,
-            y: 0
-          }
+        from: {
+          x: 0,
+          y: - y - 1
+        },
+        to: {
+          x: 0,
+          y: 0
         }
       })
     }
@@ -172,7 +154,7 @@ function createField(state: AppState, width: number, height: number) {
 }
 
 function removeFinishedTransitions(state: AppState) {
-  state.transitions = state.transitions.filter(t => t.progress !== 1)
+  state.moveTransitions = state.moveTransitions.filter(t => t.progress !== 1)
 
   return state
 }

@@ -3,19 +3,16 @@ export declare type AppStore = Store<AppState>;
 export interface AppState {
     frameIndex: number;
     time: number;
-    transitions: Transition[];
+    moveTransitions: MoveTransition[];
     cells: Cell[];
 }
 export interface Transition {
     target: CellId;
     startTime: number;
     duration: number;
-    options: MoveTransition;
-    currentState: MoveTransitionState;
     progress?: number;
 }
-export interface MoveTransition {
-    type: 'move';
+export interface MoveTransition extends Transition {
     from: MoveTransitionState;
     to: MoveTransitionState;
 }

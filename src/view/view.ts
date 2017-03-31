@@ -8,6 +8,7 @@ import {
 import {
   AppState,
   Transition,
+  MoveTransition,
   Cell,
   CellId
 } from '../store/store'
@@ -85,7 +86,7 @@ export class View {
         return
       }
 
-      view.setStyle(cellModel, transition.currentState)
+      view.setStyle(cellModel, interpolateTransition(transition))
     })
 
     this.renderer.render(this.stage)
@@ -97,5 +98,14 @@ function findById<ItemType extends { id: number }>(array: ItemType[], id: number
 }
 
 function findTransition(state: AppState, target: CellId) {
-  return state.transitions.find(t => t.target === target)
+  return state.moveTransitions.find(t => t.target === target)
+}
+
+function interpolateTransition(t: MoveTransition) {
+  const progress = t.progress || 0
+
+  return {
+    x: t.from.x + (t.to.x - t.from.x) * progress,
+    y: t.from.y + (t.to.y - t.from.y) * progress
+  }
 }

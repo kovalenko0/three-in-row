@@ -18870,13 +18870,12 @@ function createAppStore(initialState) {
             }
         }
         state = removeFinishedTransitions(state);
-        state.transitions.forEach(t => {
+        state.moveTransitions.forEach(t => {
             const target = findById(state.cells, t.target);
             if (!target) {
                 return;
             }
             t.progress = getTransitionProgress(t, state.time);
-            t.currentState = interpolateTransition(t, t.progress);
         });
         return state || initialState;
     });
@@ -18893,12 +18892,6 @@ function getTransitionProgress(t, currentTime) {
     else {
         return isBeingAnimatedFor / t.duration;
     }
-}
-function interpolateTransition(t, progress) {
-    return {
-        x: t.options.from.x + (t.options.to.x - t.options.from.x) * progress,
-        y: t.options.from.y + (t.options.to.y - t.options.from.y) * progress
-    };
 }
 function findById(array, id) {
     return array.find(item => item.id === id);
@@ -18918,24 +18911,17 @@ function createField(state, width, height) {
                 x,
                 y
             });
-            state.transitions.push({
+            state.moveTransitions.push({
                 target: id,
-                currentState: {
-                    x: 0,
-                    y: 0
-                },
                 duration: 500,
                 startTime: state.time + delay,
-                options: {
-                    type: 'move',
-                    from: {
-                        x: 0,
-                        y: -y - 1
-                    },
-                    to: {
-                        x: 0,
-                        y: 0
-                    }
+                from: {
+                    x: 0,
+                    y: -y - 1
+                },
+                to: {
+                    x: 0,
+                    y: 0
                 }
             });
         }
@@ -18943,7 +18929,7 @@ function createField(state, width, height) {
     return state;
 }
 function removeFinishedTransitions(state) {
-    state.transitions = state.transitions.filter(t => t.progress !== 1);
+    state.moveTransitions = state.moveTransitions.filter(t => t.progress !== 1);
     return state;
 }
 
@@ -19004,7 +18990,7 @@ class View {
                 });
                 return;
             }
-            view.setStyle(cellModel, transition.currentState);
+            view.setStyle(cellModel, interpolateTransition(transition));
         });
         this.renderer.render(this.stage);
     }
@@ -19014,7 +19000,14 @@ function findById(array, id) {
     return array.find(item => item.id === id);
 }
 function findTransition(state, target) {
-    return state.transitions.find(t => t.target === target);
+    return state.moveTransitions.find(t => t.target === target);
+}
+function interpolateTransition(t) {
+    const progress = t.progress || 0;
+    return {
+        x: t.from.x + (t.to.x - t.from.x) * progress,
+        y: t.from.y + (t.to.y - t.from.y) * progress
+    };
 }
 
 
@@ -19031,7 +19024,7 @@ const pixi_js_1 = __webpack_require__(21);
 const initialState = {
     frameIndex: 0,
     time: 0,
-    transitions: [],
+    moveTransitions: [],
     cells: []
 };
 const store = store_1.createAppStore(initialState);
