@@ -18861,22 +18861,20 @@ function createAppStore(initialState) {
                 break;
             }
             case 'create-field': {
-                const a = action;
-                state = createField(state, a.payload.width, a.payload.height);
+                state = createField(state);
                 break;
             }
             default: {
                 break;
             }
         }
-        state = removeFinishedTransitions(state);
-        state.moveTransitions.forEach(t => {
-            const target = findById(state.cells, t.target);
-            if (!target) {
-                return;
-            }
-            t.progress = getTransitionProgress(t, state.time);
-        });
+        state.moveTransitions.forEach(t => setTransitionProgress(t, state.time));
+        state.removeTransitions.forEach(t => setTransitionProgress(t, state.time));
+        state = removeFinishedMoveTransitions(state);
+        state = processFinishedRemoveTransitions(state);
+        if (state.moveTransitions.length === 0 && state.removeTransitions.length === 0) {
+            state = removeRandomCells(state);
+        }
         return state || initialState;
     });
 }
@@ -18896,24 +18894,25 @@ function getTransitionProgress(t, currentTime) {
 function findById(array, id) {
     return array.find(item => item.id === id);
 }
-function createField(state, width, height) {
-    for (let x = 0; x < width; x++) {
-        for (let y = 0; y < width; y++) {
+function createField(state) {
+    for (let x = 0; x < state.fieldWidth; x++) {
+        for (let y = 0; y < state.fieldHeight; y++) {
             const id = generateId();
             let delay = 0;
-            const itemsAnimationDelay = 40;
+            const itemsAnimationDelay = 20;
             const reverseHorizontalDelay = y % 2;
-            const xDelayIncrement = reverseHorizontalDelay ? x : (width - x);
-            delay = (height * (height - y) + xDelayIncrement) * itemsAnimationDelay;
+            const xDelayIncrement = reverseHorizontalDelay ? x : (state.fieldWidth - x);
+            delay = (state.fieldHeight * (state.fieldHeight - y) + xDelayIncrement) * itemsAnimationDelay;
             state.cells.push({
                 color: Math.random() < 0.5 ? 'a' : 'b',
                 id,
                 x,
-                y
+                y,
+                inTransition: true
             });
             state.moveTransitions.push({
                 target: id,
-                duration: 500,
+                duration: 300,
                 startTime: state.time + delay,
                 from: {
                     x: 0,
@@ -18928,8 +18927,82 @@ function createField(state, width, height) {
     }
     return state;
 }
-function removeFinishedTransitions(state) {
+function setTransitionProgress(t, time) {
+    t.progress = getTransitionProgress(t, time);
+}
+function removeFinishedMoveTransitions(state) {
+    state.moveTransitions.forEach(t => {
+        if (t.progress !== 1) {
+            return;
+        }
+        const target = findById(state.cells, t.target);
+        if (target) {
+            target.inTransition = false;
+        }
+    });
     state.moveTransitions = state.moveTransitions.filter(t => t.progress !== 1);
+    return state;
+}
+function removeRandomCells(state) {
+    if (state.cells.length === 0) {
+        return state;
+    }
+    const staticCells = state.cells.filter(c => !c.inTransition);
+    const index = getRandomNumberInRange(0, staticCells.length - 3);
+    const idsToRemove = [index, index + 1, index + 2].map((i) => staticCells[i].id);
+    state.removeTransitions.push(...idsToRemove.map(id => {
+        return {
+            target: id,
+            startTime: state.time,
+            duration: 300
+        };
+    }));
+    return state;
+}
+function getRandomNumberInRange(from, to) {
+    return from + Math.trunc((to - from) * Math.random());
+}
+function processFinishedRemoveTransitions(state) {
+    const cellsToRemove = state
+        .removeTransitions
+        .filter(t => t.progress === 1)
+        .map(t => findById(state.cells, t.target));
+    cellsToRemove.forEach(cell => {
+        if (cell) {
+            state.cells.splice(state.cells.indexOf(cell), 1);
+        }
+    });
+    state = cellsToRemove.reduce((state, cell, index) => {
+        if (cell) {
+            return createNewCellAt(state, cell.x, cell.y, index * 100);
+        }
+        return state;
+    }, state);
+    state.removeTransitions = state.removeTransitions.filter(t => t.progress !== 1);
+    return state;
+}
+function createNewCellAt(state, x, y, delay) {
+    const id = generateId();
+    state.cells.push({
+        color: Math.random() < 0.5 ? 'a' : 'b',
+        id,
+        x,
+        y,
+        inTransition: true
+    });
+    state.moveTransitions.push({
+        target: id,
+        duration: 300,
+        startTime: state.time + delay,
+        from: {
+            x: 0,
+            y: -y - 1
+        },
+        to: {
+            x: 0,
+            y: 0
+        }
+    });
     return state;
 }
 
@@ -18949,11 +19022,11 @@ class View {
         this.cellPadding = cellPadding;
         this.colorA = colorA;
         this.colorB = colorB;
-        this.cellViewPool = new cell_view_pool_1.CellViewPool();
         this.viewsToRender = [];
         this.renderer = pixi_js_1.autoDetectRenderer(400, 400);
         element.appendChild(this.renderer.view);
         this.stage = new pixi_js_1.Container();
+        this.cellViewPool = new cell_view_pool_1.CellViewPool(this.stage);
     }
     render(state) {
         const viewsToRender = state.cells.map((cell, index) => {
@@ -18968,7 +19041,6 @@ class View {
                 size: this.cellSize,
                 padding: this.cellPadding
             });
-            this.stage.addChild(cellView.graphics);
             return cellView;
         });
         this.viewsToRender.forEach(view => {
@@ -18980,17 +19052,28 @@ class View {
         this.viewsToRender.forEach(view => {
             const cellModel = findById(state.cells, view.id);
             if (!cellModel) {
-                return;
+                throw 'No cell model associated with view';
             }
-            const transition = findTransition(state, view.id);
-            if (!transition) {
-                view.setStyle(cellModel, {
+            const moveTransition = findMoveTransition(state, view.id);
+            const removeTransition = findRemoveTransition(state, view.id);
+            let interpolatedMoveTransition;
+            if (moveTransition) {
+                interpolatedMoveTransition = interpolateMoveTransition(moveTransition);
+            }
+            else {
+                interpolatedMoveTransition = {
                     x: 0,
                     y: 0
-                });
-                return;
+                };
             }
-            view.setStyle(cellModel, interpolateTransition(transition));
+            let interpolatedRemoveTransition;
+            if (removeTransition) {
+                interpolatedRemoveTransition = interpolateRemoveTransition(removeTransition);
+            }
+            else {
+                interpolatedRemoveTransition = 1;
+            }
+            view.setStyle(cellModel, interpolatedMoveTransition, interpolatedRemoveTransition * 0.6);
         });
         this.renderer.render(this.stage);
     }
@@ -18999,15 +19082,22 @@ exports.View = View;
 function findById(array, id) {
     return array.find(item => item.id === id);
 }
-function findTransition(state, target) {
+function findMoveTransition(state, target) {
     return state.moveTransitions.find(t => t.target === target);
 }
-function interpolateTransition(t) {
+function findRemoveTransition(state, target) {
+    return state.removeTransitions.find(t => t.target === target);
+}
+function interpolateMoveTransition(t) {
     const progress = t.progress || 0;
     return {
         x: t.from.x + (t.to.x - t.from.x) * progress,
         y: t.from.y + (t.to.y - t.from.y) * progress
     };
+}
+function interpolateRemoveTransition(t) {
+    const progress = t.progress || 0;
+    return 1 - progress;
 }
 
 
@@ -19022,9 +19112,12 @@ const store_1 = __webpack_require__(96);
 const view_1 = __webpack_require__(97);
 const pixi_js_1 = __webpack_require__(21);
 const initialState = {
+    fieldWidth: 7,
+    fieldHeight: 7,
     frameIndex: 0,
     time: 0,
     moveTransitions: [],
+    removeTransitions: [],
     cells: []
 };
 const store = store_1.createAppStore(initialState);
@@ -19037,8 +19130,8 @@ store.subscribe(() => view.render(store.getState()));
 store.dispatch({
     type: 'create-field',
     payload: {
-        width: 10,
-        height: 10
+        width: 4,
+        height: 4
     }
 });
 pixi_js_1.ticker.shared.add((deltaTime) => {
@@ -19062,11 +19155,12 @@ class CellView {
         this.id = id;
         this.style = style;
         this.graphics = new pixi_js_1.Graphics();
-        console.log('New cellView created');
+        console.warn('cell created');
     }
-    setStyle(cellModel, transition) {
+    setStyle(cellModel, transition, alpha) {
         this.graphics.x = (cellModel.x + transition.x) * this.style.size;
         this.graphics.y = (cellModel.y + transition.y) * this.style.size;
+        this.graphics.alpha = alpha;
         if (this.previousColor === cellModel.color) {
             return;
         }
@@ -19080,15 +19174,19 @@ class CellView {
 }
 exports.CellView = CellView;
 class CellViewPool {
-    constructor() {
+    constructor(stage) {
+        this.stage = stage;
         this.freeCells = [];
     }
     getCell(id, style) {
         let cell = this.freeCells.pop();
         if (cell) {
+            cell.id = id;
             return cell;
         }
-        return new CellView(id, style);
+        cell = new CellView(id, style);
+        this.stage.addChild(cell.graphics);
+        return cell;
     }
     freeCellView(cellView) {
         if (this.freeCells.indexOf(cellView) !== -1) {

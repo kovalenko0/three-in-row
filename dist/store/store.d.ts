@@ -1,9 +1,12 @@
 import { Store, Action } from 'redux';
 export declare type AppStore = Store<AppState>;
 export interface AppState {
+    fieldWidth: number;
+    fieldHeight: number;
     frameIndex: number;
     time: number;
     moveTransitions: MoveTransition[];
+    removeTransitions: RemoveTransition[];
     cells: Cell[];
 }
 export interface Transition {
@@ -20,6 +23,8 @@ export interface MoveTransitionState {
     x: number;
     y: number;
 }
+export interface RemoveTransition extends Transition {
+}
 export declare type CellId = number;
 export declare type CellColor = 'a' | 'b';
 export interface Cell {
@@ -27,6 +32,7 @@ export interface Cell {
     x: number;
     y: number;
     color: CellColor;
+    inTransition: boolean;
 }
 export declare type AppActionType = 'increase-time' | 'create-field';
 export interface AppAction extends Action {

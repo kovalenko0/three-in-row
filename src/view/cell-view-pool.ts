@@ -1,4 +1,4 @@
-import { Graphics } from 'pixi.js'
+import { Graphics, Container } from 'pixi.js'
 import { Cell, CellId, CellColor, MoveTransitionState } from '../store/store'
 
 export interface CellStyle {
@@ -13,13 +13,13 @@ export class CellView {
   private previousColor: CellColor
 
   constructor (public id: CellId, public style: CellStyle) {
-    console.log('New cellView created')
+    console.warn('cell created')
   }
 
-
-  public setStyle(cellModel: Cell, transition: MoveTransitionState) {
+  public setStyle(cellModel: Cell, transition: MoveTransitionState, alpha: number) {
     this.graphics.x = (cellModel.x + transition.x) * this.style.size
     this.graphics.y = (cellModel.y + transition.y) * this.style.size
+    this.graphics.alpha = alpha
 
     if (this.previousColor === cellModel.color) {
       return
@@ -44,14 +44,21 @@ export class CellView {
 export class CellViewPool {
   private freeCells: CellView[] = []
 
+  constructor (private stage: Container) {}
+
   public getCell(id: CellId, style: CellStyle) {
     let cell = this.freeCells.pop()
 
     if (cell) {
+      cell.id = id
       return cell
     }
 
-    return new CellView(id, style)
+    cell = new CellView(id, style)
+
+    this.stage.addChild(cell.graphics)
+
+    return cell
   }
 
   public freeCellView(cellView: CellView) {

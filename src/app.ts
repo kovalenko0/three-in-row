@@ -3,9 +3,12 @@ import { View } from './view/view'
 import { ticker } from 'pixi.js'
 
 const initialState: AppState = {
+  fieldWidth: 7,
+  fieldHeight: 7,
   frameIndex: 0,
   time: 0,
   moveTransitions: [],
+  removeTransitions: [],
   cells: []
 }
 
@@ -29,8 +32,8 @@ store.subscribe(() => view.render(store.getState()))
 store.dispatch({
   type: 'create-field',
   payload: {
-    width: 10,
-    height: 10
+    width: 4,
+    height: 4
   }
 })
 
