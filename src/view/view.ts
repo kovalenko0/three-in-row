@@ -96,7 +96,7 @@ export class View {
         interpolatedRemoveTransition = 1
       }
 
-      view.setStyle(cellModel, interpolatedMoveTransition, interpolatedRemoveTransition * 0.6)
+      view.setStyle(cellModel, interpolatedMoveTransition, interpolatedRemoveTransition)
     })
 
     this.renderer.render(this.stage)
@@ -116,7 +116,8 @@ function findRemoveTransition(state: AppState, target: CellId) {
 }
 
 function interpolateMoveTransition(t: MoveTransition) {
-  const progress = t.progress || 0
+  const p = t.progress || 0
+  const progress = 0.5 - Math.cos(p * Math.PI) / 2
 
   return {
     x: t.from.x + (t.to.x - t.from.x) * progress,

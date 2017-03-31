@@ -18912,7 +18912,7 @@ function createField(state) {
             });
             state.moveTransitions.push({
                 target: id,
-                duration: 300,
+                duration: 500,
                 startTime: state.time + delay,
                 from: {
                     x: 0,
@@ -18992,7 +18992,7 @@ function createNewCellAt(state, x, y, delay) {
     });
     state.moveTransitions.push({
         target: id,
-        duration: 300,
+        duration: 500,
         startTime: state.time + delay,
         from: {
             x: 0,
@@ -19073,7 +19073,7 @@ class View {
             else {
                 interpolatedRemoveTransition = 1;
             }
-            view.setStyle(cellModel, interpolatedMoveTransition, interpolatedRemoveTransition * 0.6);
+            view.setStyle(cellModel, interpolatedMoveTransition, interpolatedRemoveTransition);
         });
         this.renderer.render(this.stage);
     }
@@ -19089,7 +19089,8 @@ function findRemoveTransition(state, target) {
     return state.removeTransitions.find(t => t.target === target);
 }
 function interpolateMoveTransition(t) {
-    const progress = t.progress || 0;
+    const p = t.progress || 0;
+    const progress = 0.5 - Math.cos(p * Math.PI) / 2;
     return {
         x: t.from.x + (t.to.x - t.from.x) * progress,
         y: t.from.y + (t.to.y - t.from.y) * progress

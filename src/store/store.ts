@@ -141,7 +141,7 @@ function createField(state: AppState) {
 
       state.moveTransitions.push({
         target: id,
-        duration: 300,
+        duration: 500,
         startTime: state.time + delay,
         from: {
           x: 0,
@@ -242,7 +242,7 @@ function createNewCellAt(state: AppState, x: number, y: number, delay: number) {
 
   state.moveTransitions.push({
     target: id,
-    duration: 300,
+    duration: 500,
     startTime: state.time + delay,
     from: {
       x: 0,
