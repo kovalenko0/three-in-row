@@ -15,6 +15,7 @@ export interface Transition {
   duration: number
   options: MoveTransition
   currentState: MoveTransitionState
+  progress?: number
 }
 
 export interface MoveTransition {
@@ -94,25 +95,27 @@ export function createAppStore(initialState: AppState) {
         return
       }
 
-      t.currentState = interpolateTransition(t, state.time)
+      t.progress = getTransitionProgress(t, state.time)
+      t.currentState = interpolateTransition(t, t.progress)
     })
 
     return state || initialState
   })
 }
 
-function interpolateTransition(t: Transition, currentTime: number) {
-  let progress
+function getTransitionProgress(t: Transition, currentTime: number) {
   const isBeingAnimatedFor = currentTime - t.startTime
 
   if (isBeingAnimatedFor < 0) {
-    progress = 0
+    return 0
   } else if (isBeingAnimatedFor > t.duration) {
-    progress = 1
+    return 1
   } else {
-    progress = isBeingAnimatedFor / t.duration
+    return isBeingAnimatedFor / t.duration
   }
+}
 
+function interpolateTransition(t: Transition, progress: number) {
   return {
     x: t.options.from.x + (t.options.to.x - t.options.from.x) * progress,
     y: t.options.from.y + (t.options.to.y - t.options.from.y) * progress
@@ -169,7 +172,7 @@ function createField(state: AppState, width: number, height: number) {
 }
 
 function removeFinishedTransitions(state: AppState) {
-  // state.transitions = state.transitions.filter(t => true)
+  state.transitions = state.transitions.filter(t => t.progress !== 1)
 
   return state
 }

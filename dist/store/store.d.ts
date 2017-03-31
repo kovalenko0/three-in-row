@@ -12,6 +12,7 @@ export interface Transition {
     duration: number;
     options: MoveTransition;
     currentState: MoveTransitionState;
+    progress?: number;
 }
 export interface MoveTransition {
     type: 'move';
