@@ -25,12 +25,14 @@ export class View {
 
   constructor(
     element: HTMLElement,
-    public cellSize = 40,
-    public cellPadding = 1,
-    public colorA = 0x36b9f7,
-    public colorB = 0xec7777
+    private width: number,
+    private height: number,
+    private cellSize: number,
+    private cellPadding: number,
+    private colorA: number,
+    private colorB: number
   ) {
-    this.renderer = autoDetectRenderer(400, 400)
+    this.renderer = autoDetectRenderer(width, height)
 
     element.appendChild(this.renderer.view)
 

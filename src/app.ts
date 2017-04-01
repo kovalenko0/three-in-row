@@ -6,7 +6,6 @@ const initialState: AppState = {
   fieldWidth: 20,
   fieldHeight: 20,
   lineLength: 5,
-  frameIndex: 0,
   time: 0,
   moveTransitions: [],
   removeTransitions: [],
@@ -22,6 +21,8 @@ if (!element) {
 
 const view = new View(
   element,
+  400,
+  400,
   20,
   1,
   0x36b9f7,
@@ -30,7 +31,7 @@ const view = new View(
 
 store.subscribe(() => view.render(store.getState()))
 
-ticker.shared.add((deltaTime: number) => {
+ticker.shared.add(() => {
   store.dispatch({
     type: 'increase-time',
     payload: ticker.shared.elapsedMS

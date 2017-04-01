@@ -4,7 +4,6 @@ export interface AppState {
     fieldWidth: number;
     fieldHeight: number;
     lineLength: number;
-    frameIndex: number;
     time: number;
     moveTransitions: MoveTransition[];
     removeTransitions: RemoveTransition[];
@@ -14,7 +13,7 @@ export interface Transition {
     target: CellId;
     startTime: number;
     duration: number;
-    progress?: number;
+    progress: number;
 }
 export interface MoveTransition extends Transition {
     from: MoveTransitionState;
@@ -35,19 +34,9 @@ export interface Cell {
     color: CellColor;
     inTransition: boolean;
 }
-export declare type AppActionType = 'increase-time' | 'create-field';
+export declare type AppActionType = 'increase-time';
 export interface AppAction extends Action {
     type: AppActionType;
-}
-export interface IncreaseTime extends Action {
-    type: 'increase-time';
     payload: number;
-}
-export interface CreateField extends Action {
-    type: 'create-field';
-    payload: {
-        width: number;
-        height: number;
-    };
 }
 export declare function createAppStore(initialState: AppState): Store<AppState>;

@@ -6,7 +6,6 @@ export interface AppState {
   fieldWidth: number
   fieldHeight: number
   lineLength: number
-  frameIndex: number
   time: number
   moveTransitions: MoveTransition[]
   removeTransitions: RemoveTransition[]
@@ -17,7 +16,7 @@ export interface Transition {
   target: CellId
   startTime: number
   duration: number
-  progress?: number
+  progress: number
 }
 
 export interface MoveTransition extends Transition {
@@ -46,23 +45,11 @@ export interface Cell {
   inTransition: boolean
 }
 
-export type AppActionType = 'increase-time' | 'create-field'
+export type AppActionType = 'increase-time'
 
 export interface AppAction extends Action {
-  type: AppActionType
-}
-
-export interface IncreaseTime extends Action {
-  type: 'increase-time'
+  type: AppActionType,
   payload: number
-}
-
-export interface CreateField extends Action {
-  type: 'create-field'
-  payload: {
-    width: number
-    height: number
-  }
 }
 
 const generateId = (() => {
@@ -77,12 +64,7 @@ export function createAppStore(initialState: AppState) {
   return createStore<AppState>(function (state: AppState = initialState, action: AppAction) {
     switch (action.type) {
       case 'increase-time': {
-        state.time += (action as IncreaseTime).payload
-
-        break
-      }
-      case 'create-field': {
-        // state = createField(state)
+        state.time += action.payload
         break
       }
       default: {
@@ -105,6 +87,10 @@ export function createAppStore(initialState: AppState) {
   })
 }
 
+function setTransitionProgress(t: Transition, time: number) {
+  t.progress = getTransitionProgress(t, time)
+}
+
 function getTransitionProgress(t: Transition, currentTime: number) {
   const isBeingAnimatedFor = currentTime - t.startTime
 
@@ -113,19 +99,8 @@ function getTransitionProgress(t: Transition, currentTime: number) {
   } else if (isBeingAnimatedFor > t.duration) {
     return 1
   } else {
-    if (isBeingAnimatedFor / t.duration > 1) {
-      console.log('Having some weird shit going on')
-    }
     return isBeingAnimatedFor / t.duration
   }
-}
-
-function findById<ItemType extends { id: number }>(array: ItemType[], id: number) {
-  return array.find(item => item.id === id)
-}
-
-function setTransitionProgress(t: Transition, time: number) {
-  t.progress = getTransitionProgress(t, time)
 }
 
 function removeFinishedMoveTransitions(state: AppState) {
@@ -146,18 +121,68 @@ function removeFinishedMoveTransitions(state: AppState) {
   return state
 }
 
-function removeCells(state: AppState, cellsToRemove: Cell[]) {
-  if (state.cells.length === 0) {
-    return state
+function findById<ItemType extends { id: number }>(array: ItemType[], id: number) {
+  return array.find(item => item.id === id)
+}
+
+function processFinishedRemoveTransitions(state: AppState) {
+  const cellsToRemove = state
+    .removeTransitions
+    .filter(t => t.progress === 1)
+    .map(t => findById(state.cells, t.target))
+
+  const affectedCells = new Map<CellId, MoveTransitionState>()
+
+  cellsToRemove.forEach(cell => {
+    if (!cell) {
+      return
+    }
+    const cellsAbove = state.cells.filter(c => c.x === cell.x && c.y < cell.y)
+
+    cellsAbove.forEach(c => {
+      c.y += 1
+
+      let affectedCell = affectedCells.get(c.id)
+
+      if (!affectedCell) {
+        affectedCell = {
+          x: 0,
+          y: 0
+        }
+        affectedCells.set(c.id, affectedCell)
+      }
+
+      affectedCell.y -= 1
+    })
+  })
+
+  for (const [id, offset] of affectedCells) {
+    const isGoingToBeRemoved = cellsToRemove.indexOf(findById(state.cells, id)) !== -1
+
+    if (isGoingToBeRemoved) {
+      continue
+    }
+
+    state.moveTransitions.push({
+      target: id,
+      startTime: state.time,
+      duration: 500,
+      progress: 0,
+      from: offset,
+      to: {
+        x: 0,
+        y: 0
+      }
+    })
   }
 
-  state.removeTransitions.push(...cellsToRemove.map(cell => {
-    return {
-      target: cell.id,
-      startTime: state.time,
-      duration: 500
+  cellsToRemove.forEach(cell => {
+    if (cell) {
+      state.cells.splice(state.cells.indexOf(cell), 1)
     }
-  }))
+  })
+
+  state.removeTransitions = state.removeTransitions.filter(t => t.progress !== 1)
 
   return state
 }
@@ -221,6 +246,24 @@ function removeLineOfCells(state: AppState) {
   return state
 }
 
+
+function removeCells(state: AppState, cellsToRemove: Cell[]) {
+  if (state.cells.length === 0) {
+    return state
+  }
+
+  state.removeTransitions.push(...cellsToRemove.map(cell => {
+    return {
+      target: cell.id,
+      startTime: state.time,
+      duration: 500,
+      progress: 0
+    }
+  }))
+
+  return state
+}
+
 function iterateRows(state: AppState, callback: (row: Cell[], index: number) => boolean) {
   for (let i = 0; i < state.fieldHeight; i++) {
     const row = state.cells.filter(c => c.y === i && !c.inTransition)
@@ -265,71 +308,6 @@ function iterateColumns(state: AppState, callback: (row: Cell[], index: number) 
   }
 }
 
-function getRandomNumberInRange(from: number, to: number) {
-  return from + Math.trunc((to - from) * Math.random())
-}
-
-function processFinishedRemoveTransitions(state: AppState) {
-  const cellsToRemove = state
-    .removeTransitions
-    .filter(t => t.progress === 1)
-    .map(t => findById(state.cells, t.target))
-
-  const affectedCells = new Map<CellId, MoveTransitionState>()
-
-  cellsToRemove.forEach(cell => {
-    if (!cell) {
-      return
-    }
-    const cellsAbove = state.cells.filter(c => c.x === cell.x && c.y < cell.y)
-
-    cellsAbove.forEach(c => {
-      c.y += 1
-
-      let affectedCell = affectedCells.get(c.id)
-
-      if (!affectedCell) {
-        affectedCell = {
-          x: 0,
-          y: 0
-        }
-        affectedCells.set(c.id, affectedCell)
-      }
-
-      affectedCell.y -= 1
-    })
-  })
-
-  for (const [id, offset] of affectedCells) {
-    const isGoingToBeRemoved = cellsToRemove.indexOf(findById(state.cells, id)) !== -1
-
-    if (isGoingToBeRemoved) {
-      continue
-    }
-
-    state.moveTransitions.push({
-      target: id,
-      duration: 500,
-      startTime: state.time,
-      from: offset,
-      to: {
-        x: 0,
-        y: 0
-      }
-    })
-  }
-
-  cellsToRemove.forEach(cell => {
-    if (cell) {
-      state.cells.splice(state.cells.indexOf(cell), 1)
-    }
-  })
-
-  state.removeTransitions = state.removeTransitions.filter(t => t.progress !== 1)
-
-  return state
-}
-
 function fillEmptySpace(state: AppState) {
   for (let x = 0; x < state.fieldWidth; x++) {
     for (let y = 0; y < state.fieldHeight; y++) {
@@ -357,8 +335,9 @@ function createNewCellAt(state: AppState, x: number, y: number, delay: number) {
 
   state.moveTransitions.push({
     target: id,
-    duration: 500,
     startTime: state.time + delay,
+    duration: 500,
+    progress: 0,
     from: {
       x: 0,
       y: - y - 1

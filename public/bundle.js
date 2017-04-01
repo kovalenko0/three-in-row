@@ -18860,10 +18860,6 @@ function createAppStore(initialState) {
                 state.time += action.payload;
                 break;
             }
-            case 'create-field': {
-                // state = createField(state)
-                break;
-            }
             default: {
                 break;
             }
@@ -18880,6 +18876,9 @@ function createAppStore(initialState) {
     });
 }
 exports.createAppStore = createAppStore;
+function setTransitionProgress(t, time) {
+    t.progress = getTransitionProgress(t, time);
+}
 function getTransitionProgress(t, currentTime) {
     const isBeingAnimatedFor = currentTime - t.startTime;
     if (isBeingAnimatedFor < 0) {
@@ -18889,17 +18888,8 @@ function getTransitionProgress(t, currentTime) {
         return 1;
     }
     else {
-        if (isBeingAnimatedFor / t.duration > 1) {
-            console.log('Having some weird shit going on');
-        }
         return isBeingAnimatedFor / t.duration;
     }
-}
-function findById(array, id) {
-    return array.find(item => item.id === id);
-}
-function setTransitionProgress(t, time) {
-    t.progress = getTransitionProgress(t, time);
 }
 function removeFinishedMoveTransitions(state) {
     state.moveTransitions.forEach(t => {
@@ -18914,17 +18904,56 @@ function removeFinishedMoveTransitions(state) {
     state.moveTransitions = state.moveTransitions.filter(t => t.progress !== 1);
     return state;
 }
-function removeCells(state, cellsToRemove) {
-    if (state.cells.length === 0) {
-        return state;
-    }
-    state.removeTransitions.push(...cellsToRemove.map(cell => {
-        return {
-            target: cell.id,
+function findById(array, id) {
+    return array.find(item => item.id === id);
+}
+function processFinishedRemoveTransitions(state) {
+    const cellsToRemove = state
+        .removeTransitions
+        .filter(t => t.progress === 1)
+        .map(t => findById(state.cells, t.target));
+    const affectedCells = new Map();
+    cellsToRemove.forEach(cell => {
+        if (!cell) {
+            return;
+        }
+        const cellsAbove = state.cells.filter(c => c.x === cell.x && c.y < cell.y);
+        cellsAbove.forEach(c => {
+            c.y += 1;
+            let affectedCell = affectedCells.get(c.id);
+            if (!affectedCell) {
+                affectedCell = {
+                    x: 0,
+                    y: 0
+                };
+                affectedCells.set(c.id, affectedCell);
+            }
+            affectedCell.y -= 1;
+        });
+    });
+    for (const [id, offset] of affectedCells) {
+        const isGoingToBeRemoved = cellsToRemove.indexOf(findById(state.cells, id)) !== -1;
+        if (isGoingToBeRemoved) {
+            continue;
+        }
+        state.moveTransitions.push({
+            target: id,
             startTime: state.time,
-            duration: 500
-        };
-    }));
+            duration: 500,
+            progress: 0,
+            from: offset,
+            to: {
+                x: 0,
+                y: 0
+            }
+        });
+    }
+    cellsToRemove.forEach(cell => {
+        if (cell) {
+            state.cells.splice(state.cells.indexOf(cell), 1);
+        }
+    });
+    state.removeTransitions = state.removeTransitions.filter(t => t.progress !== 1);
     return state;
 }
 function removeLineOfCells(state) {
@@ -18977,6 +19006,20 @@ function removeLineOfCells(state) {
     });
     return state;
 }
+function removeCells(state, cellsToRemove) {
+    if (state.cells.length === 0) {
+        return state;
+    }
+    state.removeTransitions.push(...cellsToRemove.map(cell => {
+        return {
+            target: cell.id,
+            startTime: state.time,
+            duration: 500,
+            progress: 0
+        };
+    }));
+    return state;
+}
 function iterateRows(state, callback) {
     for (let i = 0; i < state.fieldHeight; i++) {
         const row = state.cells.filter(c => c.y === i && !c.inTransition);
@@ -19017,57 +19060,6 @@ function iterateColumns(state, callback) {
         }
     }
 }
-function getRandomNumberInRange(from, to) {
-    return from + Math.trunc((to - from) * Math.random());
-}
-function processFinishedRemoveTransitions(state) {
-    const cellsToRemove = state
-        .removeTransitions
-        .filter(t => t.progress === 1)
-        .map(t => findById(state.cells, t.target));
-    const affectedCells = new Map();
-    cellsToRemove.forEach(cell => {
-        if (!cell) {
-            return;
-        }
-        const cellsAbove = state.cells.filter(c => c.x === cell.x && c.y < cell.y);
-        cellsAbove.forEach(c => {
-            c.y += 1;
-            let affectedCell = affectedCells.get(c.id);
-            if (!affectedCell) {
-                affectedCell = {
-                    x: 0,
-                    y: 0
-                };
-                affectedCells.set(c.id, affectedCell);
-            }
-            affectedCell.y -= 1;
-        });
-    });
-    for (const [id, offset] of affectedCells) {
-        const isGoingToBeRemoved = cellsToRemove.indexOf(findById(state.cells, id)) !== -1;
-        if (isGoingToBeRemoved) {
-            continue;
-        }
-        state.moveTransitions.push({
-            target: id,
-            duration: 500,
-            startTime: state.time,
-            from: offset,
-            to: {
-                x: 0,
-                y: 0
-            }
-        });
-    }
-    cellsToRemove.forEach(cell => {
-        if (cell) {
-            state.cells.splice(state.cells.indexOf(cell), 1);
-        }
-    });
-    state.removeTransitions = state.removeTransitions.filter(t => t.progress !== 1);
-    return state;
-}
 function fillEmptySpace(state) {
     for (let x = 0; x < state.fieldWidth; x++) {
         for (let y = 0; y < state.fieldHeight; y++) {
@@ -19090,8 +19082,9 @@ function createNewCellAt(state, x, y, delay) {
     });
     state.moveTransitions.push({
         target: id,
-        duration: 500,
         startTime: state.time + delay,
+        duration: 500,
+        progress: 0,
         from: {
             x: 0,
             y: -y - 1
@@ -19115,13 +19108,15 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const pixi_js_1 = __webpack_require__(21);
 const cell_view_pool_1 = __webpack_require__(99);
 class View {
-    constructor(element, cellSize = 40, cellPadding = 1, colorA = 0x36b9f7, colorB = 0xec7777) {
+    constructor(element, width, height, cellSize, cellPadding, colorA, colorB) {
+        this.width = width;
+        this.height = height;
         this.cellSize = cellSize;
         this.cellPadding = cellPadding;
         this.colorA = colorA;
         this.colorB = colorB;
         this.viewsToRender = [];
-        this.renderer = pixi_js_1.autoDetectRenderer(400, 400);
+        this.renderer = pixi_js_1.autoDetectRenderer(width, height);
         element.appendChild(this.renderer.view);
         this.stage = new pixi_js_1.Container();
         this.cellViewPool = new cell_view_pool_1.CellViewPool(this.stage);
@@ -19214,7 +19209,6 @@ const initialState = {
     fieldWidth: 20,
     fieldHeight: 20,
     lineLength: 5,
-    frameIndex: 0,
     time: 0,
     moveTransitions: [],
     removeTransitions: [],
@@ -19225,9 +19219,9 @@ const element = document.querySelector('#stage');
 if (!element) {
     throw 'Stage element is not present';
 }
-const view = new view_1.View(element, 20, 1, 0x36b9f7, 0xec7777);
+const view = new view_1.View(element, 400, 400, 20, 1, 0x36b9f7, 0xec7777);
 store.subscribe(() => view.render(store.getState()));
-pixi_js_1.ticker.shared.add((deltaTime) => {
+pixi_js_1.ticker.shared.add(() => {
     store.dispatch({
         type: 'increase-time',
         payload: pixi_js_1.ticker.shared.elapsedMS
