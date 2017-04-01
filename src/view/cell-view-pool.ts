@@ -51,10 +51,9 @@ export class CellViewPool {
 
     if (cell) {
       cell.id = id
-      return cell
+    } else {
+      cell = new CellView(id, style)
     }
-
-    cell = new CellView(id, style)
 
     this.stage.addChild(cell.graphics)
 
@@ -65,6 +64,7 @@ export class CellViewPool {
     if (this.freeCells.indexOf(cellView) !== -1) {
       throw 'CellView is already freed'
     } else {
+      this.stage.removeChild(cellView.graphics)
       this.freeCells.push(cellView)
     }
   }

@@ -81,7 +81,7 @@ export function createAppStore(initialState: AppState) {
         break
       }
       case 'create-field': {
-        state = createField(state)
+        // state = createField(state)
         break
       }
       default: {
@@ -94,6 +94,7 @@ export function createAppStore(initialState: AppState) {
 
     state = removeFinishedMoveTransitions(state)
     state = processFinishedRemoveTransitions(state)
+    state = fillEmptySpace(state)
 
     if (state.moveTransitions.length === 0 && state.removeTransitions.length === 0) {
       state = removeRandomCells(state)
@@ -111,51 +112,15 @@ function getTransitionProgress(t: Transition, currentTime: number) {
   } else if (isBeingAnimatedFor > t.duration) {
     return 1
   } else {
+    if (isBeingAnimatedFor / t.duration > 1) {
+      console.log('Having some weird shit going on')
+    }
     return isBeingAnimatedFor / t.duration
   }
 }
 
 function findById<ItemType extends { id: number }>(array: ItemType[], id: number) {
   return array.find(item => item.id === id)
-}
-
-function createField(state: AppState) {
-  for (let x = 0; x < state.fieldWidth; x++) {
-    for (let y = 0; y < state.fieldHeight; y++) {
-      const id = generateId()
-
-      let delay = 0
-      const itemsAnimationDelay = 20
-      const reverseHorizontalDelay = y % 2
-      const xDelayIncrement = reverseHorizontalDelay ? x : (state.fieldWidth - x)
-
-      delay = (state.fieldHeight * (state.fieldHeight - y) + xDelayIncrement) * itemsAnimationDelay
-
-      state.cells.push({
-        color: Math.random() < 0.5 ? 'a' : 'b',
-        id,
-        x,
-        y,
-        inTransition: true
-      })
-
-      state.moveTransitions.push({
-        target: id,
-        duration: 500,
-        startTime: state.time + delay,
-        from: {
-          x: 0,
-          y: - y - 1
-        },
-        to: {
-          x: 0,
-          y: 0
-        }
-      })
-    }
-  }
-
-  return state
 }
 
 function setTransitionProgress(t: Transition, time: number) {
@@ -187,29 +152,7 @@ function removeRandomCells(state: AppState) {
 
   const staticCells = state.cells.filter(c => !c.inTransition)
   const index = getRandomNumberInRange(0, staticCells.length - 3)
-  const cellsToRemove = [index].map((i) => staticCells[i])
-
-  cellsToRemove.forEach(cell => {
-    const cellsAbove = state.cells.filter(c => c.x === cell.x && c.y < cell.y)
-
-    cellsAbove.forEach(c => {
-      c.y += 1
-
-      state.moveTransitions.push({
-        target: c.id,
-        duration: 500,
-        startTime: state.time,
-        from: {
-          x: 0,
-          y: -1
-        },
-        to: {
-          x: 0,
-          y: 0
-        }
-      })
-    })
-  })
+  const cellsToRemove = [index, index + 1, index + 2].map((i) => staticCells[i])
 
   state.removeTransitions.push(...cellsToRemove.map(cell => {
     return {
@@ -232,6 +175,49 @@ function processFinishedRemoveTransitions(state: AppState) {
     .filter(t => t.progress === 1)
     .map(t => findById(state.cells, t.target))
 
+  const affectedCells = new Map<CellId, MoveTransitionState>()
+
+  cellsToRemove.forEach(cell => {
+    if (!cell) {
+      return
+    }
+    const cellsAbove = state.cells.filter(c => c.x === cell.x && c.y < cell.y)
+
+    cellsAbove.forEach(c => {
+      c.y += 1
+
+      let affectedCell = affectedCells.get(c.id)
+
+      if (!affectedCell) {
+        affectedCell = {
+          x: 0,
+          y: 0
+        }
+        affectedCells.set(c.id, affectedCell)
+      }
+
+      affectedCell.y -= 1
+    })
+  })
+
+  for (const [id, offset] of affectedCells) {
+    const isGoingToBeRemoved = cellsToRemove.indexOf(findById(state.cells, id)) !== -1
+
+    if (isGoingToBeRemoved) {
+      continue
+    }
+
+    state.moveTransitions.push({
+      target: id,
+      duration: 500,
+      startTime: state.time,
+      from: offset,
+      to: {
+        x: 0,
+        y: 0
+      }
+    })
+  }
 
   cellsToRemove.forEach(cell => {
     if (cell) {
@@ -239,14 +225,23 @@ function processFinishedRemoveTransitions(state: AppState) {
     }
   })
 
-  state = cellsToRemove.reduce((state, cell, index) => {
-    if (cell) {
-      return createNewCellAt(state, cell.x, 0, index * 100)
-    }
-    return state
-  }, state)
-
   state.removeTransitions = state.removeTransitions.filter(t => t.progress !== 1)
+
+  return state
+}
+
+function fillEmptySpace(state: AppState) {
+  let createdCellCount = 0
+
+  for (let x = 0; x < state.fieldWidth; x++) {
+    for (let y = 0; y < state.fieldHeight; y++) {
+      const existingCell = state.cells.find(c => c.x === x && c.y === y)
+
+      if (!existingCell) {
+        state = createNewCellAt(state, x, y, 0)
+      }
+    }
+  }
 
   return state
 }
