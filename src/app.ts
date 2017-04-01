@@ -3,8 +3,9 @@ import { View } from './view/view'
 import { ticker } from 'pixi.js'
 
 const initialState: AppState = {
-  fieldWidth: 7,
-  fieldHeight: 7,
+  fieldWidth: 20,
+  fieldHeight: 20,
+  lineLength: 5,
   frameIndex: 0,
   time: 0,
   moveTransitions: [],
@@ -21,21 +22,13 @@ if (!element) {
 
 const view = new View(
   element,
-  40,
+  20,
   1,
   0x36b9f7,
   0xec7777
 )
 
 store.subscribe(() => view.render(store.getState()))
-
-store.dispatch({
-  type: 'create-field',
-  payload: {
-    width: 4,
-    height: 4
-  }
-})
 
 ticker.shared.add((deltaTime: number) => {
   store.dispatch({

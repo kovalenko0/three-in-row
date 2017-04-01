@@ -3,6 +3,7 @@ export declare type AppStore = Store<AppState>;
 export interface AppState {
     fieldWidth: number;
     fieldHeight: number;
+    lineLength: number;
     frameIndex: number;
     time: number;
     moveTransitions: MoveTransition[];

@@ -18874,7 +18874,7 @@ function createAppStore(initialState) {
         state = processFinishedRemoveTransitions(state);
         state = fillEmptySpace(state);
         if (state.moveTransitions.length === 0 && state.removeTransitions.length === 0) {
-            state = removeRandomCells(state);
+            state = removeLineOfCells(state);
         }
         return state || initialState;
     });
@@ -18914,21 +18914,108 @@ function removeFinishedMoveTransitions(state) {
     state.moveTransitions = state.moveTransitions.filter(t => t.progress !== 1);
     return state;
 }
-function removeRandomCells(state) {
+function removeCells(state, cellsToRemove) {
     if (state.cells.length === 0) {
         return state;
     }
-    const staticCells = state.cells.filter(c => !c.inTransition);
-    const index = getRandomNumberInRange(0, staticCells.length - 3);
-    const cellsToRemove = [index, index + 1, index + 2].map((i) => staticCells[i]);
     state.removeTransitions.push(...cellsToRemove.map(cell => {
         return {
             target: cell.id,
             startTime: state.time,
-            duration: 300
+            duration: 500
         };
     }));
     return state;
+}
+function removeLineOfCells(state) {
+    let rowRemoved = false;
+    iterateRows(state, (row, index) => {
+        let previousColor = null;
+        let currentLine = [];
+        for (let cell of row) {
+            if (cell.color === previousColor) {
+                currentLine.push(cell);
+            }
+            else {
+                if (currentLine.length >= state.lineLength) {
+                    break;
+                }
+                previousColor = cell.color;
+                currentLine = [cell];
+            }
+        }
+        if (currentLine.length >= state.lineLength) {
+            rowRemoved = true;
+            state = removeCells(state, currentLine);
+            return true;
+        }
+        return false;
+    });
+    if (rowRemoved) {
+        return state;
+    }
+    iterateColumns(state, (column, index) => {
+        let previousColor = null;
+        let currentLine = [];
+        for (let cell of column) {
+            if (cell.color === previousColor) {
+                currentLine.push(cell);
+            }
+            else {
+                if (currentLine.length >= state.lineLength) {
+                    break;
+                }
+                previousColor = cell.color;
+                currentLine = [cell];
+            }
+        }
+        if (currentLine.length >= state.lineLength) {
+            state = removeCells(state, currentLine);
+            return true;
+        }
+        return false;
+    });
+    return state;
+}
+function iterateRows(state, callback) {
+    for (let i = 0; i < state.fieldHeight; i++) {
+        const row = state.cells.filter(c => c.y === i && !c.inTransition);
+        const sortedRow = row.sort((cellA, cellB) => {
+            if (cellA.x < cellB.x) {
+                return 1;
+            }
+            else if (cellA.x > cellB.x) {
+                return -1;
+            }
+            else {
+                return 0;
+            }
+        });
+        const stopIteration = callback(sortedRow, i) || false;
+        if (stopIteration) {
+            break;
+        }
+    }
+}
+function iterateColumns(state, callback) {
+    for (let i = 0; i < state.fieldWidth; i++) {
+        const column = state.cells.filter(c => c.x === i && !c.inTransition);
+        const sortedColumn = column.sort((cellA, cellB) => {
+            if (cellA.y < cellB.y) {
+                return 1;
+            }
+            else if (cellA.y > cellB.y) {
+                return -1;
+            }
+            else {
+                return 0;
+            }
+        });
+        const stopIteration = callback(sortedColumn, i) || false;
+        if (stopIteration) {
+            break;
+        }
+    }
 }
 function getRandomNumberInRange(from, to) {
     return from + Math.trunc((to - from) * Math.random());
@@ -18982,7 +19069,6 @@ function processFinishedRemoveTransitions(state) {
     return state;
 }
 function fillEmptySpace(state) {
-    let createdCellCount = 0;
     for (let x = 0; x < state.fieldWidth; x++) {
         for (let y = 0; y < state.fieldHeight; y++) {
             const existingCell = state.cells.find(c => c.x === x && c.y === y);
@@ -19103,7 +19189,6 @@ function findRemoveTransition(state, target) {
 function interpolateMoveTransition(t) {
     const p = t.progress || 0;
     const progress = p;
-    // const progress = 0.5 - Math.cos(p * Math.PI) / 2
     return {
         x: t.from.x + (t.to.x - t.from.x) * progress,
         y: t.from.y + (t.to.y - t.from.y) * progress
@@ -19126,8 +19211,9 @@ const store_1 = __webpack_require__(96);
 const view_1 = __webpack_require__(97);
 const pixi_js_1 = __webpack_require__(21);
 const initialState = {
-    fieldWidth: 7,
-    fieldHeight: 7,
+    fieldWidth: 20,
+    fieldHeight: 20,
+    lineLength: 5,
     frameIndex: 0,
     time: 0,
     moveTransitions: [],
@@ -19139,15 +19225,8 @@ const element = document.querySelector('#stage');
 if (!element) {
     throw 'Stage element is not present';
 }
-const view = new view_1.View(element, 40, 1, 0x36b9f7, 0xec7777);
+const view = new view_1.View(element, 20, 1, 0x36b9f7, 0xec7777);
 store.subscribe(() => view.render(store.getState()));
-store.dispatch({
-    type: 'create-field',
-    payload: {
-        width: 4,
-        height: 4
-    }
-});
 pixi_js_1.ticker.shared.add((deltaTime) => {
     store.dispatch({
         type: 'increase-time',
@@ -19169,7 +19248,6 @@ class CellView {
         this.id = id;
         this.style = style;
         this.graphics = new pixi_js_1.Graphics();
-        console.warn('cell created');
     }
     setStyle(cellModel, transition, alpha) {
         this.graphics.x = (cellModel.x + transition.x) * this.style.size;
@@ -19181,6 +19259,7 @@ class CellView {
         this.previousColor = cellModel.color;
         const padding = this.style.padding;
         const size = this.style.size - padding;
+        this.graphics.clear();
         this.graphics.beginFill(cellModel.color === 'a' ? this.style.colorA : this.style.colorB);
         this.graphics.drawRect(padding, padding, size, size);
         this.graphics.endFill();

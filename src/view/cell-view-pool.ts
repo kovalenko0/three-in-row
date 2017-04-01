@@ -10,11 +10,10 @@ export interface CellStyle {
 
 export class CellView {
   public graphics = new Graphics()
+
   private previousColor: CellColor
 
-  constructor (public id: CellId, public style: CellStyle) {
-    console.warn('cell created')
-  }
+  constructor (public id: CellId, public style: CellStyle) {}
 
   public setStyle(cellModel: Cell, transition: MoveTransitionState, alpha: number) {
     this.graphics.x = (cellModel.x + transition.x) * this.style.size
@@ -30,6 +29,7 @@ export class CellView {
     const padding = this.style.padding
     const size = this.style.size - padding
 
+    this.graphics.clear()
     this.graphics.beginFill(cellModel.color === 'a' ? this.style.colorA : this.style.colorB)
     this.graphics.drawRect(
       padding,
