@@ -6,7 +6,7 @@ const initialState: AppState = {
   fieldWidth: 10,
   fieldHeight: 10,
   lineLength: 3,
-  transitionDuration: 300,
+  transitionDuration: 500,
   time: 0,
   moveTransitions: [],
   removeTransitions: [],

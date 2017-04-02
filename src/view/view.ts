@@ -96,7 +96,8 @@ function findRemoveTransition(state: AppState, target: number) {
 
 function interpolateMoveTransition(t: MoveTransition) {
   const p = t.progress || 0
-  const progress = p
+  // const progress = p
+  const progress = 0.5 - Math.cos(p * Math.PI) / 2
 
   return {
     x: t.from.x + (t.to.x - t.from.x) * progress,

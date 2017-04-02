@@ -18902,7 +18902,7 @@ function removeFinishedMoveTransitions(state) {
         if (t.progress !== 1) {
             return;
         }
-        const target = findById(state.cells, t.target);
+        const target = findById(state.cells, targetId);
         if (target) {
             target.inTransition = false;
         }
@@ -18924,25 +18924,13 @@ function processFinishedRemoveTransitions(state) {
         }
     });
     const affectedCells = new Map();
-    cellsToRemove
-        .sort((cellA, cellB) => {
-        if (cellA.y < cellB.y) {
-            return 1;
-        }
-        else if (cellA.y > cellB.y) {
-            return -1;
-        }
-        else {
-            return 0;
-        }
-    })
+    sortBy(cellsToRemove, 'y')
         .forEach(cell => {
         const cellsAbove = state.cells.filter(c => c.x === cell.x && c.y < cell.y);
-        cell.color = Math.random() < 0.5 ? 'a' : 'b';
+        cell.color = getRandomCellColor();
         cell.y = -1;
         cellsAbove.push(cell);
         cellsAbove.forEach(c => {
-            c.y += 1;
             let offset = affectedCells.get(c.id);
             if (!offset) {
                 offset = {
@@ -18952,11 +18940,11 @@ function processFinishedRemoveTransitions(state) {
                 affectedCells.set(c.id, offset);
             }
             offset.y -= 1;
+            c.y += 1;
         });
     });
     for (const [id, offset] of affectedCells) {
         state.moveTransitions[id] = {
-            target: id,
             startTime: state.time,
             duration: state.transitionDuration,
             progress: 0,
@@ -18970,37 +18958,28 @@ function processFinishedRemoveTransitions(state) {
     return state;
 }
 function removeLineOfCells(state) {
-    let rowRemoved = false;
-    let columnRemoved = false;
-    iterateColumns(state, (column, index) => {
-        let previousColor = null;
-        let currentLine = [];
-        for (let cell of column) {
-            if (cell.color === previousColor) {
-                currentLine.push(cell);
+    /* tslint:disable:switch-default */
+    switch (getRandomBoolean()) {
+        case true:
+            const columnOfCellToRemove = findColumnToRemove(state);
+            if (columnOfCellToRemove.length > 0) {
+                return removeCells(state, columnOfCellToRemove);
             }
-            else {
-                if (currentLine.length >= state.lineLength) {
-                    break;
-                }
-                previousColor = cell.color;
-                currentLine = [cell];
-            }
-        }
-        if (currentLine.length >= state.lineLength) {
-            columnRemoved = true;
-            state = removeCells(state, currentLine);
-            return true;
-        }
-        return false;
-    });
-    if (columnRemoved) {
-        return state;
+        case false:
+            return removeCells(state, findRowToRemove(state));
     }
-    iterateRows(state, (row, index) => {
+}
+function findRowToRemove(state) {
+    return findLineToRemove(state, extractRows(state));
+}
+function findColumnToRemove(state) {
+    return findLineToRemove(state, extractColumns(state));
+}
+function findLineToRemove(state, cellCollections) {
+    for (let collection of cellCollections) {
         let previousColor = null;
         let currentLine = [];
-        for (let cell of row) {
+        for (let cell of collection) {
             if (cell.color === previousColor) {
                 currentLine.push(cell);
             }
@@ -19013,13 +18992,10 @@ function removeLineOfCells(state) {
             }
         }
         if (currentLine.length >= state.lineLength) {
-            rowRemoved = true;
-            state = removeCells(state, currentLine);
-            return true;
+            return currentLine;
         }
-        return false;
-    });
-    return state;
+    }
+    return [];
 }
 function removeCells(state, cellsToRemove) {
     if (state.cells.length === 0) {
@@ -19027,7 +19003,6 @@ function removeCells(state, cellsToRemove) {
     }
     cellsToRemove.forEach(cell => {
         state.removeTransitions[cell.id] = {
-            target: cell.id,
             startTime: state.time,
             duration: state.transitionDuration,
             progress: 0
@@ -19035,45 +19010,23 @@ function removeCells(state, cellsToRemove) {
     });
     return state;
 }
-function iterateRows(state, callback) {
+function extractRows(state) {
+    const rows = [];
     for (let i = 0; i < state.fieldHeight; i++) {
         const row = state.cells.filter(c => c.y === i && !c.inTransition);
-        const sortedRow = row.sort((cellA, cellB) => {
-            if (cellA.x < cellB.x) {
-                return 1;
-            }
-            else if (cellA.x > cellB.x) {
-                return -1;
-            }
-            else {
-                return 0;
-            }
-        });
-        const stopIteration = callback(sortedRow, i) || false;
-        if (stopIteration) {
-            break;
-        }
+        const sortedRow = sortBy(row, 'x');
+        rows.push(sortedRow);
     }
+    return rows;
 }
-function iterateColumns(state, callback) {
+function extractColumns(state) {
+    const columns = [];
     for (let i = 0; i < state.fieldWidth; i++) {
         const column = state.cells.filter(c => c.x === i && !c.inTransition);
-        const sortedColumn = column.sort((cellA, cellB) => {
-            if (cellA.y < cellB.y) {
-                return 1;
-            }
-            else if (cellA.y > cellB.y) {
-                return -1;
-            }
-            else {
-                return 0;
-            }
-        });
-        const stopIteration = callback(sortedColumn, i) || false;
-        if (stopIteration) {
-            break;
-        }
+        const sortedRow = sortBy(column, 'y');
+        columns.push(sortedRow);
     }
+    return columns;
 }
 function generateField(state) {
     for (let x = 0; x < state.fieldWidth; x++) {
@@ -19094,14 +19047,13 @@ function generateField(state) {
 function createNewCellAt(state, x, y, delay) {
     const id = generateId();
     state.cells.push({
-        color: Math.random() < 0.5 ? 'a' : 'b',
+        color: getRandomCellColor(),
         id,
         x,
         y,
         inTransition: true
     });
     state.moveTransitions[id] = {
-        target: id,
         startTime: state.time + delay,
         duration: state.transitionDuration,
         progress: 0,
@@ -19116,6 +19068,9 @@ function createNewCellAt(state, x, y, delay) {
     };
     return state;
 }
+function getRandomCellColor() {
+    return Math.random() < 0.5 ? 'a' : 'b';
+}
 function iterateProps(map, callback) {
     Object
         .keys(map)
@@ -19123,6 +19078,24 @@ function iterateProps(map, callback) {
 }
 function getPropsCount(object) {
     return Object.keys(object).length;
+}
+function sortBy(array, propertyName) {
+    return array.sort((a, b) => {
+        const valueA = a[propertyName];
+        const valueB = b[propertyName];
+        if (valueA < valueB) {
+            return 1;
+        }
+        else if (valueA > valueB) {
+            return -1;
+        }
+        else {
+            return 0;
+        }
+    });
+}
+function getRandomBoolean() {
+    return Math.random() > 0.5;
 }
 
 
@@ -19134,7 +19107,7 @@ function getPropsCount(object) {
 
 Object.defineProperty(exports, "__esModule", { value: true });
 const pixi_js_1 = __webpack_require__(21);
-const cell_view_1 = __webpack_require__(210);
+const cell_view_1 = __webpack_require__(99);
 class View {
     constructor(element, width, height, cellSize, cellPadding, colorA, colorB, offsetX = 0, offsetY = 0) {
         this.width = width;
@@ -19198,7 +19171,8 @@ function findRemoveTransition(state, target) {
 }
 function interpolateMoveTransition(t) {
     const p = t.progress || 0;
-    const progress = p;
+    // const progress = p
+    const progress = 0.5 - Math.cos(p * Math.PI) / 2;
     return {
         x: t.from.x + (t.to.x - t.from.x) * progress,
         y: t.from.y + (t.to.y - t.from.y) * progress
@@ -19224,7 +19198,7 @@ const initialState = {
     fieldWidth: 10,
     fieldHeight: 10,
     lineLength: 3,
-    transitionDuration: 300,
+    transitionDuration: 500,
     time: 0,
     moveTransitions: [],
     removeTransitions: [],
@@ -19246,7 +19220,39 @@ pixi_js_1.ticker.shared.add(() => {
 
 
 /***/ }),
-/* 99 */,
+/* 99 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const pixi_js_1 = __webpack_require__(21);
+class CellView {
+    constructor(id, style) {
+        this.id = id;
+        this.style = style;
+        this.graphics = new pixi_js_1.Graphics();
+    }
+    setStyle(cellModel, transition, alpha) {
+        this.graphics.x = (cellModel.x + transition.x) * this.style.size;
+        this.graphics.y = (cellModel.y + transition.y) * this.style.size;
+        this.graphics.alpha = alpha;
+        if (this.previousColor === cellModel.color) {
+            return;
+        }
+        this.previousColor = cellModel.color;
+        const padding = this.style.padding;
+        const size = this.style.size - padding;
+        this.graphics.clear();
+        this.graphics.beginFill(cellModel.color === 'a' ? this.style.colorA : this.style.colorB);
+        this.graphics.drawRect(padding, padding, size, size);
+        this.graphics.endFill();
+    }
+}
+exports.CellView = CellView;
+
+
+/***/ }),
 /* 100 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
@@ -40450,39 +40456,6 @@ module.exports = {
     return arg == null;
   }
 };
-
-
-/***/ }),
-/* 210 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-const pixi_js_1 = __webpack_require__(21);
-class CellView {
-    constructor(id, style) {
-        this.id = id;
-        this.style = style;
-        this.graphics = new pixi_js_1.Graphics();
-    }
-    setStyle(cellModel, transition, alpha) {
-        this.graphics.x = (cellModel.x + transition.x) * this.style.size;
-        this.graphics.y = (cellModel.y + transition.y) * this.style.size;
-        this.graphics.alpha = alpha;
-        if (this.previousColor === cellModel.color) {
-            return;
-        }
-        this.previousColor = cellModel.color;
-        const padding = this.style.padding;
-        const size = this.style.size - padding;
-        this.graphics.clear();
-        this.graphics.beginFill(cellModel.color === 'a' ? this.style.colorA : this.style.colorB);
-        this.graphics.drawRect(padding, padding, size, size);
-        this.graphics.endFill();
-    }
-}
-exports.CellView = CellView;
 
 
 /***/ })

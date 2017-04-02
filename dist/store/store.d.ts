@@ -15,7 +15,6 @@ export interface AppState {
     cells: Cell[];
 }
 export interface Transition {
-    target: number;
     startTime: number;
     duration: number;
     progress: number;

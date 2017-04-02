@@ -18,7 +18,6 @@ export interface AppState {
 }
 
 export interface Transition {
-  target: number
   startTime: number
   duration: number
   progress: number
@@ -120,7 +119,7 @@ function removeFinishedMoveTransitions(state: AppState) {
       return
     }
 
-    const target = findById(state.cells, t.target)
+    const target = findById(state.cells, targetId)
 
     if (target) {
       target.inTransition = false
@@ -151,27 +150,15 @@ function processFinishedRemoveTransitions(state: AppState) {
 
   const affectedCells = new Map<number, MoveTransitionState>()
 
-  cellsToRemove
-    .sort((cellA, cellB) => {
-      if (cellA.y < cellB.y) {
-        return 1
-      } else if (cellA.y > cellB.y) {
-        return -1
-      } else {
-        return 0
-      }
-    })
+  sortBy(cellsToRemove, 'y')
     .forEach(cell => {
       const cellsAbove = state.cells.filter(c => c.x === cell.x && c.y < cell.y)
 
-      cell.color = Math.random() < 0.5 ? 'a' : 'b'
+      cell.color = getRandomCellColor()
       cell.y = -1
-
       cellsAbove.push(cell)
 
       cellsAbove.forEach(c => {
-        c.y += 1
-
         let offset = affectedCells.get(c.id)
 
         if (!offset) {
@@ -183,12 +170,12 @@ function processFinishedRemoveTransitions(state: AppState) {
         }
 
         offset.y -= 1
+        c.y += 1
       })
     })
 
   for (const [id, offset] of affectedCells) {
     state.moveTransitions[id] = {
-      target: id,
       startTime: state.time,
       duration: state.transitionDuration,
       progress: 0,
@@ -204,66 +191,51 @@ function processFinishedRemoveTransitions(state: AppState) {
 }
 
 function removeLineOfCells(state: AppState) {
-  let rowRemoved = false
-  let columnRemoved = false
+  /* tslint:disable:switch-default */
+  switch (getRandomBoolean()) {
+    case true:
+      const columnOfCellToRemove = findColumnToRemove(state)
 
-  iterateColumns(state, (column, index) => {
-    let previousColor: CellColor | null = null
-    let currentLine: Cell[] = []
-
-    for (let cell of column) {
-      if (cell.color === previousColor) {
-        currentLine.push(cell)
-      } else {
-        if (currentLine.length >= state.lineLength) {
-          break
-        }
-        previousColor = cell.color
-        currentLine = [cell]
+      if (columnOfCellToRemove.length > 0) {
+        return removeCells(state, columnOfCellToRemove)
       }
-    }
-
-    if (currentLine.length >= state.lineLength) {
-      columnRemoved = true
-      state = removeCells(state, currentLine)
-      return true
-    }
-
-    return false
-  })
-
-  if (columnRemoved) {
-    return state
+    case false:
+      return removeCells(state, findRowToRemove(state))
   }
-
-  iterateRows(state, (row, index) => {
-    let previousColor: CellColor | null = null
-    let currentLine: Cell[] = []
-
-    for (let cell of row) {
-      if (cell.color === previousColor) {
-        currentLine.push(cell)
-      } else {
-        if (currentLine.length >= state.lineLength) {
-          break
-        }
-        previousColor = cell.color
-        currentLine = [cell]
-      }
-    }
-
-    if (currentLine.length >= state.lineLength) {
-      rowRemoved = true
-      state = removeCells(state, currentLine)
-      return true
-    }
-
-    return false
-  })
-
-  return state
 }
 
+function findRowToRemove(state: AppState): Cell[] {
+  return findLineToRemove(state, extractRows(state))
+}
+
+function findColumnToRemove(state: AppState): Cell[] {
+  return findLineToRemove(state, extractColumns(state))
+}
+
+function findLineToRemove(state: AppState, cellCollections: Cell[][]) {
+  for (let collection of cellCollections) {
+    let previousColor: CellColor | null = null
+    let currentLine: Cell[] = []
+
+    for (let cell of collection) {
+      if (cell.color === previousColor) {
+        currentLine.push(cell)
+      } else {
+        if (currentLine.length >= state.lineLength) {
+          break
+        }
+        previousColor = cell.color
+        currentLine = [cell]
+      }
+    }
+
+    if (currentLine.length >= state.lineLength) {
+      return currentLine
+    }
+  }
+
+  return []
+}
 
 function removeCells(state: AppState, cellsToRemove: Cell[]) {
   if (state.cells.length === 0) {
@@ -272,7 +244,6 @@ function removeCells(state: AppState, cellsToRemove: Cell[]) {
 
   cellsToRemove.forEach(cell => {
     state.removeTransitions[cell.id] = {
-      target: cell.id,
       startTime: state.time,
       duration: state.transitionDuration,
       progress: 0
@@ -282,48 +253,28 @@ function removeCells(state: AppState, cellsToRemove: Cell[]) {
   return state
 }
 
-function iterateRows(state: AppState, callback: (row: Cell[], index: number) => boolean) {
+function extractRows(state: AppState) {
+  const rows = []
+
   for (let i = 0; i < state.fieldHeight; i++) {
     const row = state.cells.filter(c => c.y === i && !c.inTransition)
-
-    const sortedRow = row.sort((cellA, cellB) => {
-      if (cellA.x < cellB.x) {
-        return 1
-      } else if (cellA.x > cellB.x) {
-        return -1
-      } else {
-        return 0
-      }
-    })
-
-    const stopIteration = callback(sortedRow, i) || false
-
-    if (stopIteration) {
-      break
-    }
+    const sortedRow = sortBy(row, 'x')
+    rows.push(sortedRow)
   }
+
+  return rows
 }
 
-function iterateColumns(state: AppState, callback: (row: Cell[], index: number) => boolean) {
+function extractColumns(state: AppState) {
+  const columns = []
+
   for (let i = 0; i < state.fieldWidth; i++) {
     const column = state.cells.filter(c => c.x === i && !c.inTransition)
-
-    const sortedColumn = column.sort((cellA, cellB) => {
-      if (cellA.y < cellB.y) {
-        return 1
-      } else if (cellA.y > cellB.y) {
-        return -1
-      } else {
-        return 0
-      }
-    })
-
-    const stopIteration = callback(sortedColumn, i) || false
-
-    if (stopIteration) {
-      break
-    }
+    const sortedRow = sortBy(column, 'y')
+    columns.push(sortedRow)
   }
+
+  return columns
 }
 
 function generateField(state: AppState) {
@@ -351,7 +302,7 @@ function createNewCellAt(state: AppState, x: number, y: number, delay: number) {
   const id = generateId()
 
   state.cells.push({
-    color: Math.random() < 0.5 ? 'a' : 'b',
+    color: getRandomCellColor(),
     id,
     x,
     y,
@@ -359,7 +310,6 @@ function createNewCellAt(state: AppState, x: number, y: number, delay: number) {
   })
 
   state.moveTransitions[id] = {
-    target: id,
     startTime: state.time + delay,
     duration: state.transitionDuration,
     progress: 0,
@@ -376,6 +326,10 @@ function createNewCellAt(state: AppState, x: number, y: number, delay: number) {
   return state
 }
 
+function getRandomCellColor() {
+  return Math.random() < 0.5 ? 'a' : 'b'
+}
+
 interface Map<ValueType> {
   [key: number]: ValueType
 }
@@ -388,4 +342,28 @@ function iterateProps<ValueType>(map: Map<ValueType>, callback: (value: ValueTyp
 
 function getPropsCount(object: any) {
   return Object.keys(object).length
+}
+
+interface Indexable {
+  [key: number]: any,
+  [key: string]: any
+}
+
+function sortBy<ItemType>(array: ItemType[], propertyName: string | number) {
+  return array.sort((a, b) => {
+    const valueA = (a as Indexable)[propertyName]
+    const valueB = (b as Indexable)[propertyName]
+
+    if (valueA < valueB) {
+      return 1
+    } else if (valueA > valueB) {
+      return -1
+    } else {
+      return 0
+    }
+  })
+}
+
+function getRandomBoolean() {
+  return Math.random() > 0.5
 }
