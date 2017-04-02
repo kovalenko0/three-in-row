@@ -3,9 +3,10 @@ import { View } from './view/view'
 import { ticker } from 'pixi.js'
 
 const initialState: AppState = {
-  fieldWidth: 20,
-  fieldHeight: 20,
-  lineLength: 5,
+  fieldWidth: 10,
+  fieldHeight: 10,
+  lineLength: 3,
+  transitionDuration: 300,
   time: 0,
   moveTransitions: [],
   removeTransitions: [],
@@ -23,7 +24,7 @@ const view = new View(
   element,
   400,
   400,
-  20,
+  40,
   1,
   0x36b9f7,
   0xec7777

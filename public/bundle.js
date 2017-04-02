@@ -18864,12 +18864,18 @@ function createAppStore(initialState) {
                 break;
             }
         }
-        state.moveTransitions.forEach(t => setTransitionProgress(t, state.time));
-        state.removeTransitions.forEach(t => setTransitionProgress(t, state.time));
+        iterateProps(state.moveTransitions, (transition) => {
+            setTransitionProgress(transition, state.time);
+        });
+        iterateProps(state.removeTransitions, (transition) => {
+            setTransitionProgress(transition, state.time);
+        });
         state = removeFinishedMoveTransitions(state);
         state = processFinishedRemoveTransitions(state);
-        state = fillEmptySpace(state);
-        if (state.moveTransitions.length === 0 && state.removeTransitions.length === 0) {
+        if (state.cells.length === 0) {
+            state = generateField(state);
+        }
+        if (getPropsCount(state.moveTransitions) === 0 && getPropsCount(state.removeTransitions) === 0) {
             state = removeLineOfCells(state);
         }
         return state || initialState;
@@ -18892,7 +18898,7 @@ function getTransitionProgress(t, currentTime) {
     }
 }
 function removeFinishedMoveTransitions(state) {
-    state.moveTransitions.forEach(t => {
+    iterateProps(state.moveTransitions, (t, targetId) => {
         if (t.progress !== 1) {
             return;
         }
@@ -18900,64 +18906,97 @@ function removeFinishedMoveTransitions(state) {
         if (target) {
             target.inTransition = false;
         }
+        if (t.progress === 1) {
+            delete state.moveTransitions[+targetId];
+        }
     });
-    state.moveTransitions = state.moveTransitions.filter(t => t.progress !== 1);
     return state;
 }
 function findById(array, id) {
     return array.find(item => item.id === id);
 }
 function processFinishedRemoveTransitions(state) {
-    const cellsToRemove = state
-        .removeTransitions
-        .filter(t => t.progress === 1)
-        .map(t => findById(state.cells, t.target));
-    const affectedCells = new Map();
-    cellsToRemove.forEach(cell => {
-        if (!cell) {
-            return;
+    const cellsToRemove = [];
+    iterateProps(state.removeTransitions, (t, targetId) => {
+        if (t.progress === 1) {
+            cellsToRemove.push(findById(state.cells, +targetId));
+            delete state.removeTransitions[+targetId];
         }
+    });
+    const affectedCells = new Map();
+    cellsToRemove
+        .sort((cellA, cellB) => {
+        if (cellA.y < cellB.y) {
+            return 1;
+        }
+        else if (cellA.y > cellB.y) {
+            return -1;
+        }
+        else {
+            return 0;
+        }
+    })
+        .forEach(cell => {
         const cellsAbove = state.cells.filter(c => c.x === cell.x && c.y < cell.y);
+        cell.color = Math.random() < 0.5 ? 'a' : 'b';
+        cell.y = -1;
+        cellsAbove.push(cell);
         cellsAbove.forEach(c => {
             c.y += 1;
-            let affectedCell = affectedCells.get(c.id);
-            if (!affectedCell) {
-                affectedCell = {
+            let offset = affectedCells.get(c.id);
+            if (!offset) {
+                offset = {
                     x: 0,
                     y: 0
                 };
-                affectedCells.set(c.id, affectedCell);
+                affectedCells.set(c.id, offset);
             }
-            affectedCell.y -= 1;
+            offset.y -= 1;
         });
     });
     for (const [id, offset] of affectedCells) {
-        const isGoingToBeRemoved = cellsToRemove.indexOf(findById(state.cells, id)) !== -1;
-        if (isGoingToBeRemoved) {
-            continue;
-        }
-        state.moveTransitions.push({
+        state.moveTransitions[id] = {
             target: id,
             startTime: state.time,
-            duration: 500,
+            duration: state.transitionDuration,
             progress: 0,
             from: offset,
             to: {
                 x: 0,
                 y: 0
             }
-        });
+        };
     }
-    cellsToRemove.forEach(cell => {
-        if (cell) {
-            state.cells.splice(state.cells.indexOf(cell), 1);
-        }
-    });
-    state.removeTransitions = state.removeTransitions.filter(t => t.progress !== 1);
     return state;
 }
 function removeLineOfCells(state) {
     let rowRemoved = false;
+    let columnRemoved = false;
+    iterateColumns(state, (column, index) => {
+        let previousColor = null;
+        let currentLine = [];
+        for (let cell of column) {
+            if (cell.color === previousColor) {
+                currentLine.push(cell);
+            }
+            else {
+                if (currentLine.length >= state.lineLength) {
+                    break;
+                }
+                previousColor = cell.color;
+                currentLine = [cell];
+            }
+        }
+        if (currentLine.length >= state.lineLength) {
+            columnRemoved = true;
+            state = removeCells(state, currentLine);
+            return true;
+        }
+        return false;
+    });
+    if (columnRemoved) {
+        return state;
+    }
     iterateRows(state, (row, index) => {
         let previousColor = null;
         let currentLine = [];
@@ -18980,44 +19019,20 @@ function removeLineOfCells(state) {
         }
         return false;
     });
-    if (rowRemoved) {
-        return state;
-    }
-    iterateColumns(state, (column, index) => {
-        let previousColor = null;
-        let currentLine = [];
-        for (let cell of column) {
-            if (cell.color === previousColor) {
-                currentLine.push(cell);
-            }
-            else {
-                if (currentLine.length >= state.lineLength) {
-                    break;
-                }
-                previousColor = cell.color;
-                currentLine = [cell];
-            }
-        }
-        if (currentLine.length >= state.lineLength) {
-            state = removeCells(state, currentLine);
-            return true;
-        }
-        return false;
-    });
     return state;
 }
 function removeCells(state, cellsToRemove) {
     if (state.cells.length === 0) {
         return state;
     }
-    state.removeTransitions.push(...cellsToRemove.map(cell => {
-        return {
+    cellsToRemove.forEach(cell => {
+        state.removeTransitions[cell.id] = {
             target: cell.id,
             startTime: state.time,
-            duration: 500,
+            duration: state.transitionDuration,
             progress: 0
         };
-    }));
+    });
     return state;
 }
 function iterateRows(state, callback) {
@@ -19060,12 +19075,17 @@ function iterateColumns(state, callback) {
         }
     }
 }
-function fillEmptySpace(state) {
+function generateField(state) {
     for (let x = 0; x < state.fieldWidth; x++) {
         for (let y = 0; y < state.fieldHeight; y++) {
             const existingCell = state.cells.find(c => c.x === x && c.y === y);
+            let delay = 0;
+            const itemsAnimationDelay = 20;
+            const reverseHorizontalDelay = y % 2;
+            const xDelayIncrement = reverseHorizontalDelay ? x : (state.fieldWidth - x);
+            delay = (state.fieldHeight * (state.fieldHeight - y) + xDelayIncrement) * itemsAnimationDelay;
             if (!existingCell) {
-                state = createNewCellAt(state, x, y, 0);
+                state = createNewCellAt(state, x, y, delay);
             }
         }
     }
@@ -19080,10 +19100,10 @@ function createNewCellAt(state, x, y, delay) {
         y,
         inTransition: true
     });
-    state.moveTransitions.push({
+    state.moveTransitions[id] = {
         target: id,
         startTime: state.time + delay,
-        duration: 500,
+        duration: state.transitionDuration,
         progress: 0,
         from: {
             x: 0,
@@ -19093,8 +19113,16 @@ function createNewCellAt(state, x, y, delay) {
             x: 0,
             y: 0
         }
-    });
+    };
     return state;
+}
+function iterateProps(map, callback) {
+    Object
+        .keys(map)
+        .forEach(key => callback(map[+key], +key));
+}
+function getPropsCount(object) {
+    return Object.keys(object).length;
 }
 
 
@@ -19106,46 +19134,34 @@ function createNewCellAt(state, x, y, delay) {
 
 Object.defineProperty(exports, "__esModule", { value: true });
 const pixi_js_1 = __webpack_require__(21);
-const cell_view_pool_1 = __webpack_require__(99);
+const cell_view_1 = __webpack_require__(210);
 class View {
-    constructor(element, width, height, cellSize, cellPadding, colorA, colorB) {
+    constructor(element, width, height, cellSize, cellPadding, colorA, colorB, offsetX = 0, offsetY = 0) {
         this.width = width;
         this.height = height;
         this.cellSize = cellSize;
         this.cellPadding = cellPadding;
         this.colorA = colorA;
         this.colorB = colorB;
-        this.viewsToRender = [];
+        this.offsetX = offsetX;
+        this.offsetY = offsetY;
+        this.cellViews = {};
         this.renderer = pixi_js_1.autoDetectRenderer(width, height);
         element.appendChild(this.renderer.view);
         this.stage = new pixi_js_1.Container();
-        this.cellViewPool = new cell_view_pool_1.CellViewPool(this.stage);
     }
     render(state) {
-        const viewsToRender = state.cells.map((cell, index) => {
-            const existingView = findById(this.viewsToRender, cell.id);
-            if (existingView) {
-                return existingView;
-            }
-            // TODO: pool could return existing busy view by id
-            const cellView = this.cellViewPool.getCell(cell.id, {
-                colorA: this.colorA,
-                colorB: this.colorB,
-                size: this.cellSize,
-                padding: this.cellPadding
-            });
-            return cellView;
-        });
-        this.viewsToRender.forEach(view => {
-            if (!findById(viewsToRender, view.id)) {
-                this.cellViewPool.freeCellView(view);
-            }
-        });
-        this.viewsToRender = viewsToRender;
-        this.viewsToRender.forEach(view => {
-            const cellModel = findById(state.cells, view.id);
-            if (!cellModel) {
-                throw 'No cell model associated with view';
+        state.cells.forEach(cellModel => {
+            let view = this.cellViews[cellModel.id];
+            if (!view) {
+                view = new cell_view_1.CellView(cellModel.id, {
+                    colorA: this.colorA,
+                    colorB: this.colorB,
+                    padding: this.cellPadding,
+                    size: this.cellSize
+                });
+                this.stage.addChild(view.graphics);
+                this.cellViews[cellModel.id] = view;
             }
             const moveTransition = findMoveTransition(state, view.id);
             const removeTransition = findRemoveTransition(state, view.id);
@@ -19159,6 +19175,8 @@ class View {
                     y: 0
                 };
             }
+            interpolatedMoveTransition.x += this.offsetX;
+            interpolatedMoveTransition.y += this.offsetY;
             let interpolatedRemoveTransition;
             if (removeTransition) {
                 interpolatedRemoveTransition = interpolateRemoveTransition(removeTransition);
@@ -19172,14 +19190,11 @@ class View {
     }
 }
 exports.View = View;
-function findById(array, id) {
-    return array.find(item => item.id === id);
-}
 function findMoveTransition(state, target) {
-    return state.moveTransitions.find(t => t.target === target);
+    return state.moveTransitions[target];
 }
 function findRemoveTransition(state, target) {
-    return state.removeTransitions.find(t => t.target === target);
+    return state.removeTransitions[target];
 }
 function interpolateMoveTransition(t) {
     const p = t.progress || 0;
@@ -19206,9 +19221,10 @@ const store_1 = __webpack_require__(96);
 const view_1 = __webpack_require__(97);
 const pixi_js_1 = __webpack_require__(21);
 const initialState = {
-    fieldWidth: 20,
-    fieldHeight: 20,
-    lineLength: 5,
+    fieldWidth: 10,
+    fieldHeight: 10,
+    lineLength: 3,
+    transitionDuration: 300,
     time: 0,
     moveTransitions: [],
     removeTransitions: [],
@@ -19219,7 +19235,7 @@ const element = document.querySelector('#stage');
 if (!element) {
     throw 'Stage element is not present';
 }
-const view = new view_1.View(element, 400, 400, 20, 1, 0x36b9f7, 0xec7777);
+const view = new view_1.View(element, 400, 400, 40, 1, 0x36b9f7, 0xec7777);
 store.subscribe(() => view.render(store.getState()));
 pixi_js_1.ticker.shared.add(() => {
     store.dispatch({
@@ -19230,66 +19246,7 @@ pixi_js_1.ticker.shared.add(() => {
 
 
 /***/ }),
-/* 99 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-const pixi_js_1 = __webpack_require__(21);
-class CellView {
-    constructor(id, style) {
-        this.id = id;
-        this.style = style;
-        this.graphics = new pixi_js_1.Graphics();
-    }
-    setStyle(cellModel, transition, alpha) {
-        this.graphics.x = (cellModel.x + transition.x) * this.style.size;
-        this.graphics.y = (cellModel.y + transition.y) * this.style.size;
-        this.graphics.alpha = alpha;
-        if (this.previousColor === cellModel.color) {
-            return;
-        }
-        this.previousColor = cellModel.color;
-        const padding = this.style.padding;
-        const size = this.style.size - padding;
-        this.graphics.clear();
-        this.graphics.beginFill(cellModel.color === 'a' ? this.style.colorA : this.style.colorB);
-        this.graphics.drawRect(padding, padding, size, size);
-        this.graphics.endFill();
-    }
-}
-exports.CellView = CellView;
-class CellViewPool {
-    constructor(stage) {
-        this.stage = stage;
-        this.freeCells = [];
-    }
-    getCell(id, style) {
-        let cell = this.freeCells.pop();
-        if (cell) {
-            cell.id = id;
-        }
-        else {
-            cell = new CellView(id, style);
-        }
-        this.stage.addChild(cell.graphics);
-        return cell;
-    }
-    freeCellView(cellView) {
-        if (this.freeCells.indexOf(cellView) !== -1) {
-            throw 'CellView is already freed';
-        }
-        else {
-            this.stage.removeChild(cellView.graphics);
-            this.freeCells.push(cellView);
-        }
-    }
-}
-exports.CellViewPool = CellViewPool;
-
-
-/***/ }),
+/* 99 */,
 /* 100 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
@@ -40493,6 +40450,39 @@ module.exports = {
     return arg == null;
   }
 };
+
+
+/***/ }),
+/* 210 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const pixi_js_1 = __webpack_require__(21);
+class CellView {
+    constructor(id, style) {
+        this.id = id;
+        this.style = style;
+        this.graphics = new pixi_js_1.Graphics();
+    }
+    setStyle(cellModel, transition, alpha) {
+        this.graphics.x = (cellModel.x + transition.x) * this.style.size;
+        this.graphics.y = (cellModel.y + transition.y) * this.style.size;
+        this.graphics.alpha = alpha;
+        if (this.previousColor === cellModel.color) {
+            return;
+        }
+        this.previousColor = cellModel.color;
+        const padding = this.style.padding;
+        const size = this.style.size - padding;
+        this.graphics.clear();
+        this.graphics.beginFill(cellModel.color === 'a' ? this.style.colorA : this.style.colorB);
+        this.graphics.drawRect(padding, padding, size, size);
+        this.graphics.endFill();
+    }
+}
+exports.CellView = CellView;
 
 
 /***/ })

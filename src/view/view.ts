@@ -8,20 +8,17 @@ import {
 import {
   AppState,
   MoveTransition,
-  RemoveTransition,
-  CellId
+  RemoveTransition
 } from '../store/store'
 
-import {
-  CellViewPool,
-  CellView
-} from './cell-view-pool'
+import { CellView } from './cell-view'
 
 export class View {
   private renderer: WebGLRenderer | CanvasRenderer
-  private cellViewPool: CellViewPool
-  private viewsToRender: CellView[] = []
   private stage: Container
+  private cellViews: {
+    [cellId: number]: CellView
+  } = {}
 
   constructor(
     element: HTMLElement,
@@ -30,50 +27,32 @@ export class View {
     private cellSize: number,
     private cellPadding: number,
     private colorA: number,
-    private colorB: number
+    private colorB: number,
+    private offsetX: number = 0,
+    private offsetY: number = 0
   ) {
     this.renderer = autoDetectRenderer(width, height)
 
     element.appendChild(this.renderer.view)
 
     this.stage = new Container()
-    this.cellViewPool = new CellViewPool(this.stage)
   }
 
   public render(state: AppState) {
-    const viewsToRender = state.cells.map((cell, index) => {
-      const existingView = findById(this.viewsToRender, cell.id)
+    state.cells.forEach(cellModel => {
+      let view = this.cellViews[cellModel.id]
 
-      if (existingView) {
-        return existingView
-      }
-
-      // TODO: pool could return existing busy view by id
-      const cellView = this.cellViewPool.getCell(
-        cell.id,
-        {
+      if (!view) {
+        view = new CellView(cellModel.id, {
           colorA: this.colorA,
           colorB: this.colorB,
-          size: this.cellSize,
-          padding: this.cellPadding
+          padding: this.cellPadding,
+          size: this.cellSize
         })
 
-      return cellView
-    })
+        this.stage.addChild(view.graphics)
 
-    this.viewsToRender.forEach(view => {
-      if (!findById(viewsToRender, view.id)) {
-        this.cellViewPool.freeCellView(view)
-      }
-    })
-
-    this.viewsToRender = viewsToRender
-
-    this.viewsToRender.forEach(view => {
-      const cellModel = findById(state.cells, view.id)
-
-      if (!cellModel) {
-        throw 'No cell model associated with view'
+        this.cellViews[cellModel.id] = view
       }
 
       const moveTransition = findMoveTransition(state, view.id)
@@ -90,6 +69,9 @@ export class View {
         }
       }
 
+      interpolatedMoveTransition.x += this.offsetX
+      interpolatedMoveTransition.y += this.offsetY
+
       let interpolatedRemoveTransition
 
       if (removeTransition) {
@@ -100,21 +82,16 @@ export class View {
 
       view.setStyle(cellModel, interpolatedMoveTransition, interpolatedRemoveTransition)
     })
-
     this.renderer.render(this.stage)
   }
 }
 
-function findById<ItemType extends { id: number }>(array: ItemType[], id: number) {
-  return array.find(item => item.id === id)
+function findMoveTransition(state: AppState, target: number) {
+  return state.moveTransitions[target]
 }
 
-function findMoveTransition(state: AppState, target: CellId) {
-  return state.moveTransitions.find(t => t.target === target)
-}
-
-function findRemoveTransition(state: AppState, target: CellId) {
-  return state.removeTransitions.find(t => t.target === target)
+function findRemoveTransition(state: AppState, target: number) {
+  return state.removeTransitions[target]
 }
 
 function interpolateMoveTransition(t: MoveTransition) {

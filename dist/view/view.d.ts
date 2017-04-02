@@ -6,10 +6,11 @@ export declare class View {
     private cellPadding;
     private colorA;
     private colorB;
+    private offsetX;
+    private offsetY;
     private renderer;
-    private cellViewPool;
-    private viewsToRender;
     private stage;
-    constructor(element: HTMLElement, width: number, height: number, cellSize: number, cellPadding: number, colorA: number, colorB: number);
+    private cellViews;
+    constructor(element: HTMLElement, width: number, height: number, cellSize: number, cellPadding: number, colorA: number, colorB: number, offsetX?: number, offsetY?: number);
     render(state: AppState): void;
 }

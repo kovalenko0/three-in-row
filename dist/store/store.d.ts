@@ -5,12 +5,17 @@ export interface AppState {
     fieldHeight: number;
     lineLength: number;
     time: number;
-    moveTransitions: MoveTransition[];
-    removeTransitions: RemoveTransition[];
+    transitionDuration: number;
+    moveTransitions: {
+        [cellId: number]: MoveTransition;
+    };
+    removeTransitions: {
+        [cellId: number]: RemoveTransition;
+    };
     cells: Cell[];
 }
 export interface Transition {
-    target: CellId;
+    target: number;
     startTime: number;
     duration: number;
     progress: number;
@@ -25,10 +30,9 @@ export interface MoveTransitionState {
 }
 export interface RemoveTransition extends Transition {
 }
-export declare type CellId = number;
 export declare type CellColor = 'a' | 'b';
 export interface Cell {
-    id: CellId;
+    id: number;
     x: number;
     y: number;
     color: CellColor;
